@@ -1,0 +1,33 @@
+[[constraint]]
+  name = "github.com/heptio/velero"
+  source = "github.com/skriss/velero.git"
+  branch = "1.14-deps"
+
+[[constraint]]
+  name = "github.com/pkg/errors"
+  version = "0.8.1"
+
+[[constraint]]
+  name = "github.com/sirupsen/logrus"
+  version = "1.4.0"
+
+[[constraint]]
+  name = "k8s.io/api"
+  version = "kubernetes-1.14.0"
+
+[[constraint]]
+  name = "k8s.io/apimachinery"
+  version = "kubernetes-1.14.0"
+
+[[constraint]]
+  name = "k8s.io/client-go"
+  version = "kubernetes-1.14.0"
+
+[[constraint]]
+  name = "github.com/kubernetes-csi/external-snapshotter"
+  version = "~v1.1.0"
+
+[prune]
+  go-tests = true
+  unused-packages = true
+  non-go = true
