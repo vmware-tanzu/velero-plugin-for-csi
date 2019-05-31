@@ -75,7 +75,7 @@ shell: build-dirs
 		-e CGO_ENABLED=0 \
 		-w /go/src/$(PKG) \
 		$(BUILD_IMAGE) \
-		go build -installsuffix "static" -i -v -o _output/bin/$(GOOS)/$(GOARCH)/$(BIN) ./$(BIN)
+		go build -installsuffix "static" -v -o _output/bin/$(GOOS)/$(GOARCH)/$(BIN) ./$(BIN)
 
 build-dirs:
 	@mkdir -p _output/bin/$(GOOS)/$(GOARCH)
