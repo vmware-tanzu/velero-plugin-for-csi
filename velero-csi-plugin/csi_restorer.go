@@ -17,7 +17,13 @@ limitations under the License.
 package main
 
 import (
+	corev1api "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+
 	"github.com/heptio/velero/pkg/plugin/velero"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/meta"
 )
@@ -40,7 +46,10 @@ func (p *CSIRestorer) AppliesTo() (velero.ResourceSelector, error) {
 // in this case, setting a custom annotation on the item being restored.
 func (p *CSIRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
 	p.log.Info("Hello from my RestorePlugin!")
-
+	var pvc corev1api.PersistentVolumeClaim
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &pvc); err != nil {
+		return nil, errors.WithStack(err)
+	}
 	metadata, err := meta.Accessor(input.Item)
 	if err != nil {
 		return &velero.RestoreItemActionExecuteOutput{}, err
@@ -51,9 +60,36 @@ func (p *CSIRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vel
 		annotations = make(map[string]string)
 	}
 
-	annotations["velero.io/my-restore-plugin"] = "1"
+	volumeSnapshotName, ok := annotations["velero.io/volume-snapshot-name"]
+	if !ok {
+		return nil, errors.Errorf("Could not find volume snapshot name on PVC")
+	}
 
-	metadata.SetAnnotations(annotations)
+	_, snapshotClient, err := getClients()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 
-	return velero.NewRestoreItemActionExecuteOutput(input.Item), nil
+	volumeSnapshot, err := snapshotClient.VolumesnapshotV1alpha1().VolumeSnapshots(pvc.Namespace).Get(volumeSnapshotName, metav1.GetOptions{})
+	//TODO: better error handling, account for a 404
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	g := "snapshot.storage.k8s.io"
+	pvc.Spec.DataSource = &corev1api.TypedLocalObjectReference{
+		// This needs to be a pointer, since nil is used
+		APIGroup: &g,
+		Kind:     volumeSnapshot.Kind,
+		Name:     volumeSnapshotName,
+	}
+
+	pvcMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(pvc)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	// TODO: Return additional items to restore, like the VolumeSnapshot? That would have to be restored _before_ the PVC
+	// That may be necessary in Velero's resource priority list, so they come out of the tarball first
+	return velero.NewRestoreItemActionExecuteOutput(&unstructured.Unstructured{Object: pvcMap}), nil
 }
