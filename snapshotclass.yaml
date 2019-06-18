@@ -3,3 +3,4 @@ kind: VolumeSnapshotClass
 metadata:
   name: csi-aws-vsc
 snapshotter: ebs.csi.aws.com
+deletionPolicy: Retain
