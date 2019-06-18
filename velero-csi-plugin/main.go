@@ -25,6 +25,8 @@ func main() {
 	veleroplugin.NewServer().
 		RegisterBackupItemAction("velero.io/csi-snapshotter", newCSISnapshotter).
 		RegisterRestoreItemAction("velero.io/csi-restorer", newCSIRestorer).
+		RegisterRestoreItemAction("velero.io/volumesnapshotcontents-restorer", newVSCRestorer).
+		RegisterRestoreItemAction("velero.io/volumesnapshots-restorer", newVSRestorer).
 		Serve()
 }
 
@@ -34,4 +36,12 @@ func newCSISnapshotter(logger logrus.FieldLogger) (interface{}, error) {
 
 func newCSIRestorer(logger logrus.FieldLogger) (interface{}, error) {
 	return &CSIRestorer{log: logger}, nil
+}
+
+func newVSCRestorer(logger logrus.FieldLogger) (interface{}, error) {
+	return &VSCRestorer{log: logger}, nil
+}
+
+func newVSRestorer(logger logrus.FieldLogger) (interface{}, error) {
+	return &VSRestorer{log: logger}, nil
 }
