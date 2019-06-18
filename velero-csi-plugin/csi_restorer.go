@@ -18,7 +18,6 @@ package main
 
 import (
 	corev1api "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -45,7 +44,6 @@ func (p *CSIRestorer) AppliesTo() (velero.ResourceSelector, error) {
 // Execute allows the RestorePlugin to perform arbitrary logic with the item being restored,
 // in this case, setting a custom annotation on the item being restored.
 func (p *CSIRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
-	p.log.Info("Hello from my RestorePlugin!")
 	var pvc corev1api.PersistentVolumeClaim
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &pvc); err != nil {
 		return nil, errors.WithStack(err)
@@ -65,31 +63,20 @@ func (p *CSIRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vel
 		return nil, errors.Errorf("Could not find volume snapshot name on PVC")
 	}
 
-	_, snapshotClient, err := getClients()
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	volumeSnapshot, err := snapshotClient.VolumesnapshotV1alpha1().VolumeSnapshots(pvc.Namespace).Get(volumeSnapshotName, metav1.GetOptions{})
-	//TODO: better error handling, account for a 404
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
 	g := "snapshot.storage.k8s.io"
 	pvc.Spec.DataSource = &corev1api.TypedLocalObjectReference{
-		// This needs to be a pointer, since nil is used
+		// This needs to be a pointer, since nil is used for the default group
 		APIGroup: &g,
-		Kind:     volumeSnapshot.Kind,
+		Kind:     "VolumeSnapshot",
 		Name:     volumeSnapshotName,
 	}
 
-	pvcMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(pvc)
+	pvcMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&pvc)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	// TODO: Return additional items to restore, like the VolumeSnapshot? That would have to be restored _before_ the PVC
-	// That may be necessary in Velero's resource priority list, so they come out of the tarball first
-	return velero.NewRestoreItemActionExecuteOutput(&unstructured.Unstructured{Object: pvcMap}), nil
+	return &velero.RestoreItemActionExecuteOutput{
+		UpdatedItem: &unstructured.Unstructured{Object: pvcMap},
+	}, nil
 }
