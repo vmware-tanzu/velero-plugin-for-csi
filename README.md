@@ -27,3 +27,29 @@ To build the image, run
 $ make container
 ```
 
+
+## Using with AWS's EBS CSI driver
+
+Deploy the driver (see [their docs](https://github.com/kubernetes-sigs/aws-ebs-csi-driver/) for more details)
+
+```
+kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/aws-ebs-csi-driver/master/deploy/kubernetes/manifest.yaml
+```
+
+Apply the storage class
+
+```
+kubectl apply -f sc.yaml
+```
+
+Apply the snapshot class
+
+```
+kubectl apply -f snapshotclass.yaml
+```
+
+Create the demo application
+
+```
+kubectl apply -f demo.yaml
+```
