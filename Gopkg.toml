@@ -1,7 +1,6 @@
 [[constraint]]
   name = "github.com/heptio/velero"
-  source = "github.com/skriss/velero.git"
-  branch = "1.14-deps"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/pkg/errors"

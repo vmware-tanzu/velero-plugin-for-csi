@@ -2,6 +2,14 @@
 
 
 [[projects]]
+  digest = "1:80004fcc5cf64e591486b3e11b406f1e0d17bf85d475d64203c8494f5da4fcd1"
+  name = "cloud.google.com/go"
+  packages = ["compute/metadata"]
+  pruneopts = "NUT"
+  revision = "457ea5c15ccf3b87db582c450e80101989da35f7"
+  version = "v0.40.0"
+
+[[projects]]
   digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
@@ -18,14 +26,6 @@
   ]
   pruneopts = "NUT"
   revision = "c0656edd0d9eab7c66d1eb0c568f9039345796f7"
-
-[[projects]]
-  branch = "master"
-  digest = "1:e2b86e41f3d669fc36b50d31d32d22c8ac656c75aa5ea89717ce7177e134ff2a"
-  name = "github.com/golang/glog"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "23def4e6c14b4da8ac2ed8007337bc5eb5007998"
 
 [[projects]]
   digest = "1:2d0636a8c490d2272dd725db26f74a537111b99b9dbdda0d8b98febe63702aa4"
@@ -69,14 +69,14 @@
   version = "v0.8.0"
 
 [[projects]]
-  digest = "1:143aae8d04a6133eea9c6400b90a1f47ae1100b48a1636160aba861d1b26c5b2"
+  digest = "1:980fd2c6afd6c268284d46dd66671771184a4002f6d516492cc596d2ca003543"
   name = "github.com/hashicorp/go-plugin"
   packages = [
     ".",
     "internal/plugin",
   ]
   pruneopts = "NUT"
-  revision = "3f118e8ee104b6f22aeb12453fab56aed1356186"
+  revision = "a1bc61569a26c0f65865932c0d55743b0567c494"
 
 [[projects]]
   branch = "master"
@@ -87,8 +87,8 @@
   revision = "2f1d1f20f75d5404f53b9edf6b53ed5505508675"
 
 [[projects]]
-  branch = "1.14-deps"
-  digest = "1:5b0234b834ef7f6cbba4fd99c5d7f83483a4d458aa86232f7c350125dc33df7b"
+  branch = "master"
+  digest = "1:e01759519db476973e2d732cfd5a02e0ea6be4e37fb121e77e49f4213750b67b"
   name = "github.com/heptio/velero"
   packages = [
     "pkg/apis/velero/v1",
@@ -99,8 +99,7 @@
     "pkg/util/logging",
   ]
   pruneopts = "NUT"
-  revision = "c5f1006da35d75993175c950d3897998bf01e9fa"
-  source = "github.com/skriss/velero.git"
+  revision = "19052994ed1456e88d37569d902363927d34d3ea"
 
 [[projects]]
   digest = "1:aaa38889f11896ee3644d77e17dc7764cc47f5f3d3b488268df2af2b52541c5f"
@@ -238,11 +237,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:4d25d388c9ad5169b31c1a6f16cc7bcdb856489958e99f2123d8d8cdf000d7eb"
+  digest = "1:3121d742fbe48670a16d98b6da4693501fc33cd76d69ed6f35850c564f255c65"
   name = "golang.org/x/oauth2"
   packages = [
     ".",
+    "google",
     "internal",
+    "jws",
+    "jwt",
   ]
   pruneopts = "NUT"
   revision = "9f3314589c9a9136388751d9adae6b0ed400978a"
@@ -290,13 +292,16 @@
   revision = "9d24e82272b4f38b78bc8cff74fa936d31ccd8ef"
 
 [[projects]]
-  digest = "1:372cd8eba449f9b6db06677d0e73fa193ec5b19aaee148f355503ab6127045ca"
+  digest = "1:a4824d8df1fd1f63c6b3690bf4801d6ff1722adcb3e13c0489196a7e248d868a"
   name = "google.golang.org/appengine"
   packages = [
+    ".",
     "internal",
+    "internal/app_identity",
     "internal/base",
     "internal/datastore",
     "internal/log",
+    "internal/modules",
     "internal/remote_api",
     "internal/urlfetch",
     "urlfetch",
@@ -461,7 +466,7 @@
   version = "kubernetes-1.14.0"
 
 [[projects]]
-  digest = "1:bb8ec2b3f430dfda97e3b39a89361e280b4c323d8e45b835c2c4df00f6d2f339"
+  digest = "1:1b426f65d37a71e6c7626598082631649ae1986c49e96a86ce861466a9174917"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
@@ -508,8 +513,10 @@
     "pkg/apis/clientauthentication/v1beta1",
     "pkg/version",
     "plugin/pkg/client/auth/exec",
+    "plugin/pkg/client/auth/gcp",
     "rest",
     "rest/watch",
+    "third_party/forked/golang/template",
     "tools/auth",
     "tools/clientcmd",
     "tools/clientcmd/api",
@@ -522,6 +529,7 @@
     "util/connrotation",
     "util/flowcontrol",
     "util/homedir",
+    "util/jsonpath",
     "util/keyutil",
   ]
   pruneopts = "NUT"
@@ -566,8 +574,10 @@
     "k8s.io/api/core/v1",
     "k8s.io/apimachinery/pkg/api/meta",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
+    "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured",
     "k8s.io/apimachinery/pkg/runtime",
     "k8s.io/client-go/kubernetes",
+    "k8s.io/client-go/plugin/pkg/client/auth/gcp",
     "k8s.io/client-go/tools/clientcmd",
   ]
   solver-name = "gps-cdcl"
