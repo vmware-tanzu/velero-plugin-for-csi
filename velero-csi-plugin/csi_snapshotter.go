@@ -17,7 +17,7 @@ limitations under the License.
 package main
 
 import (
-	snapshotv1alpha1api "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
+	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
 	snapshotter "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -75,14 +75,14 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *v1.Backup) (
 		return nil, nil, errors.Wrap(err, "error getting storage class")
 	}
 
-	snapshotClasses, err := snapshotClient.VolumesnapshotV1alpha1().VolumeSnapshotClasses().List(metav1.ListOptions{})
+	snapshotClasses, err := snapshotClient.SnapshotV1beta1().VolumeSnapshotClasses().List(metav1.ListOptions{})
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error listing snapshot classes")
 	}
 
-	var snapshotClass *snapshotv1alpha1api.VolumeSnapshotClass
+	var snapshotClass *snapshotv1beta1api.VolumeSnapshotClass
 	for i := range snapshotClasses.Items {
-		if snapshotClasses.Items[i].Snapshotter == storageClass.Provisioner {
+		if snapshotClasses.Items[i].Driver == storageClass.Provisioner {
 			snapshotClass = &snapshotClasses.Items[i]
 		}
 	}
@@ -91,20 +91,19 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *v1.Backup) (
 		return nil, nil, errors.Errorf("no volume snapshot class found for %s", storageClass.Provisioner)
 	}
 
-	snapshot := snapshotv1alpha1api.VolumeSnapshot{
+	snapshot := snapshotv1beta1api.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "velero-" + pvc.Name + "-",
 		},
-		Spec: snapshotv1alpha1api.VolumeSnapshotSpec{
-			Source: &corev1api.TypedLocalObjectReference{
-				Kind: "PersistentVolumeClaim",
-				Name: pvc.Name,
+		Spec: snapshotv1beta1api.VolumeSnapshotSpec{
+			Source: snapshotv1beta1api.VolumeSnapshotSource{
+				PersistentVolumeClaimName: &pvc.Name,
 			},
 			VolumeSnapshotClassName: &snapshotClass.Name,
 		},
 	}
 
-	upd, err := snapshotClient.VolumesnapshotV1alpha1().VolumeSnapshots(pvc.Namespace).Create(&snapshot)
+	upd, err := snapshotClient.SnapshotV1beta1().VolumeSnapshots(pvc.Namespace).Create(&snapshot)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "error creating volume snapshot")
 	}

@@ -21,7 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/heptio/velero/pkg/plugin/velero"
-	snapshotv1alpha1api "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
+	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -39,15 +39,14 @@ func (p *VSRestorer) AppliesTo() (velero.ResourceSelector, error) {
 
 func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
 	p.log.Info("Starting VSRestorer")
-	var vs snapshotv1alpha1api.VolumeSnapshot
+	var vs snapshotv1beta1api.VolumeSnapshot
 
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &vs); err != nil {
 		return &velero.RestoreItemActionExecuteOutput{}, err
 	}
 
-	// Source is the PVC from which a snapshot was created.
-	// This must be removed so that the controller doesn't think we're trying to create a new snapshot
-	vs.Spec.Source = nil
+	// This section of code used to set the VolumeSnapshot.Spec.Source field to nil
+	// As of the beta, this is no longer relevant, and the code has been removed.
 
 	vsMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vs)
 	if err != nil {
