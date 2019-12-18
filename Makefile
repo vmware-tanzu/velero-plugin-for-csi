@@ -94,7 +94,7 @@ ci-%:
 	$(MAKE) --no-print-directory BIN=$* ci
 
 test: build-dirs
-	@$(MAKE) shell  CMD="go test -cover ./velero-csi-plugin"
+	@$(MAKE) shell  CMD="-c 'go test -cover ./velero-csi-plugin'"
 
 ci: all test
 
