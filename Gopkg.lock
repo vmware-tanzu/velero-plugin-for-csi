@@ -134,17 +134,17 @@
   version = "v1.0.2"
 
 [[projects]]
-  digest = "1:1933103237d50f3f97aa6ed188eebcae3163d76ea04a9ba35668cebd459ea530"
+  digest = "1:de174e204a118ace08e3f65b9c0e0f4d04fe35dc43559394eb829922d844d602"
   name = "github.com/kubernetes-csi/external-snapshotter"
   packages = [
-    "pkg/apis/volumesnapshot/v1alpha1",
+    "pkg/apis/volumesnapshot/v1beta1",
     "pkg/client/clientset/versioned",
     "pkg/client/clientset/versioned/scheme",
-    "pkg/client/clientset/versioned/typed/volumesnapshot/v1alpha1",
+    "pkg/client/clientset/versioned/typed/volumesnapshot/v1beta1",
   ]
   pruneopts = "NUT"
-  revision = "ac33959738598e55a0a0a9d5a2d08d7445f27f36"
-  version = "v1.1.0"
+  revision = "3846ea09fd64a664dc450dd4a1d01cc0aefef78d"
+  version = "v2.0.0-rc4"
 
 [[projects]]
   digest = "1:18b773b92ac82a451c1276bd2776c1e55ce057ee202691ab33c8d6690efcc048"
@@ -567,7 +567,7 @@
     "github.com/heptio/velero/pkg/apis/velero/v1",
     "github.com/heptio/velero/pkg/plugin/framework",
     "github.com/heptio/velero/pkg/plugin/velero",
-    "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1",
+    "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1",
     "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned",
     "github.com/pkg/errors",
     "github.com/sirupsen/logrus",

@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/heptio/velero/pkg/plugin/velero"
-	snapshotv1alpha1api "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
+	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -40,7 +40,7 @@ func (p *VSCRestorer) AppliesTo() (velero.ResourceSelector, error) {
 
 func (p *VSCRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
 	p.log.Info("Starting VSCRestorer")
-	var vsc snapshotv1alpha1api.VolumeSnapshotContent
+	var vsc snapshotv1beta1api.VolumeSnapshotContent
 
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &vsc); err != nil {
 		return &velero.RestoreItemActionExecuteOutput{}, err
@@ -52,7 +52,7 @@ func (p *VSCRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vel
 	}
 
 	snapRef := vsc.Spec.VolumeSnapshotRef
-	volumeSnapshot, err := snapshotClient.VolumesnapshotV1alpha1().VolumeSnapshots(snapRef.Namespace).Get(snapRef.Name, metav1.GetOptions{})
+	volumeSnapshot, err := snapshotClient.SnapshotV1beta1().VolumeSnapshots(snapRef.Namespace).Get(snapRef.Name, metav1.GetOptions{})
 	//TODO: better error handling, account for a 404
 	if err != nil {
 		return nil, errors.WithStack(err)

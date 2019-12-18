@@ -24,7 +24,7 @@
 
 [[constraint]]
   name = "github.com/kubernetes-csi/external-snapshotter"
-  version = "~v1.1.0"
+  version = "v2.0.0-rc4"
 
 [prune]
   go-tests = true
