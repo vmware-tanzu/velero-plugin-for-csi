@@ -16,10 +16,12 @@
 BIN ?= $(wildcard velero-*)
 
 # This repo's root import path (under GOPATH).
+# TODO(nrb): FIX IMPORT PATH
 PKG ?= github.com/heptio/velero-csi-plugin
 
 BUILD_IMAGE ?= golang:1.12-stretch
 
+#TODO(nrb): FIX IMAGE PATH
 IMAGE ?= gcr.io/heptio-images/velero-plugin-example
 
 # Which architecture to build - see $(ALL_ARCH) for options.
@@ -55,7 +57,7 @@ _output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs
 		PKG=$(PKG) \
 		BIN=$(BIN) \
 		OUTPUT_DIR=/output/$(GOOS)/$(GOARCH) \
-		./hack/build.sh'"
+		go build -v -o _output/bin/$(GOOS)/$(GOARCH)/$(BIN) ./$(BIN)'"
 
 TTY := $(shell tty -s && echo "-t")
 
@@ -66,6 +68,7 @@ shell: build-dirs
 		-i $(TTY) \
 		--rm \
 		-u $$(id -u):$$(id -g) \
+		-v "$$(pwd)/_output/bin:/output:delegated" \
 		-v $$(pwd)/.go/pkg:/go/pkg \
 		-v $$(pwd)/.go/src:/go/src \
 		-v $$(pwd)/.go/std:/go/std \
@@ -75,7 +78,7 @@ shell: build-dirs
 		-e CGO_ENABLED=0 \
 		-w /go/src/$(PKG) \
 		$(BUILD_IMAGE) \
-		go build -installsuffix "static" -v -o _output/bin/$(GOOS)/$(GOARCH)/$(BIN) ./$(BIN)
+		/bin/sh $(CMD)
 
 build-dirs:
 	@mkdir -p _output/bin/$(GOOS)/$(GOARCH)
@@ -90,9 +93,10 @@ all-ci: $(addprefix ci-, $(BIN))
 ci-%:
 	$(MAKE) --no-print-directory BIN=$* ci
 
-ci:
-	mkdir -p _output
-	CGO_ENABLED=0 go build -v -o _output/bin/$(GOOS)/$(GOARCH)/$(BIN) ./$(BIN)
+test: build-dirs
+	@$(MAKE) shell  CMD="go test -cover ./velero-csi-plugin"
+
+ci: all test
 
 clean:
 	@echo "cleaning"
