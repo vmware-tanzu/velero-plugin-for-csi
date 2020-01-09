@@ -1,5 +1,5 @@
 [[constraint]]
-  name = "github.com/heptio/velero"
+  name = "github.com/vmware-tanzu/velero"
   branch = "master"
 
 [[constraint]]

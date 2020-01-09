@@ -87,18 +87,6 @@
   revision = "2f1d1f20f75d5404f53b9edf6b53ed5505508675"
 
 [[projects]]
-  branch = "master"
-  digest = "1:c79cc8c490ddf9b51eed72bb1d8c559af6134bd1b7d0a9364d9c0726037368f5"
-  name = "github.com/heptio/velero"
-  packages = [
-    "pkg/apis/velero/v1",
-    "pkg/plugin/framework",
-    "pkg/plugin/velero",
-  ]
-  pruneopts = "NUT"
-  revision = "555e8ff2e35dd222bd8c36df35cbca51aace2871"
-
-[[projects]]
   digest = "1:aaa38889f11896ee3644d77e17dc7764cc47f5f3d3b488268df2af2b52541c5f"
   name = "github.com/imdario/mergo"
   packages = ["."]
@@ -208,18 +196,19 @@
   version = "v1.0.3"
 
 [[projects]]
-  digest = "1:4c49f4b3261fcd083db9c566038401a642e7d59f95418be204f43cb47cb3fd61"
+  branch = "master"
+  digest = "1:edb54d8509ea6f5479d4d50f578db931dae48711b50ab4b168b5823bf4f33302"
   name = "github.com/vmware-tanzu/velero"
   packages = [
     "pkg/apis/velero/v1",
     "pkg/cmd/util/flag",
+    "pkg/plugin/framework",
     "pkg/plugin/generated",
     "pkg/plugin/velero",
     "pkg/util/logging",
   ]
   pruneopts = "NUT"
-  revision = "5d008491bbf681658d3e372da1a9d3a21ca4c03c"
-  version = "v1.2.0"
+  revision = "555e8ff2e35dd222bd8c36df35cbca51aace2871"
 
 [[projects]]
   branch = "master"
@@ -574,13 +563,13 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "github.com/heptio/velero/pkg/apis/velero/v1",
-    "github.com/heptio/velero/pkg/plugin/framework",
-    "github.com/heptio/velero/pkg/plugin/velero",
     "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1",
     "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned",
     "github.com/pkg/errors",
     "github.com/sirupsen/logrus",
+    "github.com/vmware-tanzu/velero/pkg/apis/velero/v1",
+    "github.com/vmware-tanzu/velero/pkg/plugin/framework",
+    "github.com/vmware-tanzu/velero/pkg/plugin/velero",
     "k8s.io/api/core/v1",
     "k8s.io/apimachinery/pkg/api/meta",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
