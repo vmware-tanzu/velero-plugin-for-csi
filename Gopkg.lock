@@ -87,21 +87,6 @@
   revision = "2f1d1f20f75d5404f53b9edf6b53ed5505508675"
 
 [[projects]]
-  branch = "master"
-  digest = "1:e01759519db476973e2d732cfd5a02e0ea6be4e37fb121e77e49f4213750b67b"
-  name = "github.com/heptio/velero"
-  packages = [
-    "pkg/apis/velero/v1",
-    "pkg/cmd/util/flag",
-    "pkg/plugin/framework",
-    "pkg/plugin/generated",
-    "pkg/plugin/velero",
-    "pkg/util/logging",
-  ]
-  pruneopts = "NUT"
-  revision = "19052994ed1456e88d37569d902363927d34d3ea"
-
-[[projects]]
   digest = "1:aaa38889f11896ee3644d77e17dc7764cc47f5f3d3b488268df2af2b52541c5f"
   name = "github.com/imdario/mergo"
   packages = ["."]
@@ -134,7 +119,7 @@
   version = "v1.0.2"
 
 [[projects]]
-  digest = "1:de174e204a118ace08e3f65b9c0e0f4d04fe35dc43559394eb829922d844d602"
+  digest = "1:775dd16bb1280c2723378738cf1619f93840fe9bf65ca9b526c49bc8e0bb0cc8"
   name = "github.com/kubernetes-csi/external-snapshotter"
   packages = [
     "pkg/apis/volumesnapshot/v1beta1",
@@ -143,8 +128,8 @@
     "pkg/client/clientset/versioned/typed/volumesnapshot/v1beta1",
   ]
   pruneopts = "NUT"
-  revision = "3846ea09fd64a664dc450dd4a1d01cc0aefef78d"
-  version = "v2.0.0-rc4"
+  revision = "fd8d8a33ddb591fc06197879fb9b4cc6ad7e753a"
+  version = "v2.0.0"
 
 [[projects]]
   digest = "1:18b773b92ac82a451c1276bd2776c1e55ce057ee202691ab33c8d6690efcc048"
@@ -209,6 +194,21 @@
   pruneopts = "NUT"
   revision = "298182f68c66c05229eb03ac171abe6e309ee79a"
   version = "v1.0.3"
+
+[[projects]]
+  branch = "master"
+  digest = "1:edb54d8509ea6f5479d4d50f578db931dae48711b50ab4b168b5823bf4f33302"
+  name = "github.com/vmware-tanzu/velero"
+  packages = [
+    "pkg/apis/velero/v1",
+    "pkg/cmd/util/flag",
+    "pkg/plugin/framework",
+    "pkg/plugin/generated",
+    "pkg/plugin/velero",
+    "pkg/util/logging",
+  ]
+  pruneopts = "NUT"
+  revision = "555e8ff2e35dd222bd8c36df35cbca51aace2871"
 
 [[projects]]
   branch = "master"
@@ -377,7 +377,7 @@
   version = "v2.2.2"
 
 [[projects]]
-  digest = "1:a937ed4322409fa22924f02124fd0727c19662f73cf15406646d19bdce972df2"
+  digest = "1:760e08df99c3c3b53764ef7c41c03ea9d90e8594d9df42364d9209e99a0352e1"
   name = "k8s.io/api"
   packages = [
     "admissionregistration/v1beta1",
@@ -418,11 +418,11 @@
     "storage/v1beta1",
   ]
   pruneopts = "NUT"
-  revision = "40a48860b5abbba9aa891b02b32da429b08d96a0"
-  version = "kubernetes-1.14.0"
+  revision = "3544db3b9e4494309507e02eced5cd9dcff47e6a"
+  version = "kubernetes-1.15.3"
 
 [[projects]]
-  digest = "1:8bcd63053adfbb2547a71424b03e09d19392ffed1010cb4643781d9ebfe3b900"
+  digest = "1:d8948a8e44ec1f0deb72d4a4f393a81094e58134122c7ac14e5ff3cadd1dcf23"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/errors",
@@ -430,7 +430,6 @@
     "pkg/api/resource",
     "pkg/apis/meta/v1",
     "pkg/apis/meta/v1/unstructured",
-    "pkg/apis/meta/v1beta1",
     "pkg/conversion",
     "pkg/conversion/queryparams",
     "pkg/fields",
@@ -462,11 +461,11 @@
     "third_party/forked/golang/reflect",
   ]
   pruneopts = "NUT"
-  revision = "d7deff9243b165ee192f5551710ea4285dcfd615"
-  version = "kubernetes-1.14.0"
+  revision = "f2f3a405f61d6c2cdc0d00687c1b5d90de91e9f0"
+  version = "kubernetes-1.15.3"
 
 [[projects]]
-  digest = "1:1b426f65d37a71e6c7626598082631649ae1986c49e96a86ce861466a9174917"
+  digest = "1:3f0de17eb564481310ed545a316f2aae09015f25db055c8b7b28c3e3a1331e08"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
@@ -533,8 +532,8 @@
     "util/keyutil",
   ]
   pruneopts = "NUT"
-  revision = "6ee68ca5fd8355d024d02f9db0b3b667e8357a0f"
-  version = "kubernetes-1.14.0"
+  revision = "e14f31a72a77f7aa82a95eaf542d1194fb027d04"
+  version = "kubernetes-1.15.3"
 
 [[projects]]
   digest = "1:2c16dda1c44c2564a7818fbacb701323c16d77c21b969987c1bec08d3ee0b050"
@@ -564,13 +563,13 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "github.com/heptio/velero/pkg/apis/velero/v1",
-    "github.com/heptio/velero/pkg/plugin/framework",
-    "github.com/heptio/velero/pkg/plugin/velero",
     "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1",
     "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned",
     "github.com/pkg/errors",
     "github.com/sirupsen/logrus",
+    "github.com/vmware-tanzu/velero/pkg/apis/velero/v1",
+    "github.com/vmware-tanzu/velero/pkg/plugin/framework",
+    "github.com/vmware-tanzu/velero/pkg/plugin/velero",
     "k8s.io/api/core/v1",
     "k8s.io/apimachinery/pkg/api/meta",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
