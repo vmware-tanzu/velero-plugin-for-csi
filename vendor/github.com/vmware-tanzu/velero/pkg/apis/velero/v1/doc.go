@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Kubernetes Authors.
+Copyright 2017 the Velero contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,9 +15,7 @@ limitations under the License.
 */
 
 // +k8s:deepcopy-gen=package
-// +k8s:openapi-gen=true
-// +k8s:defaulter-gen=TypeMeta
 
-// +groupName=meta.k8s.io
-
-package v1beta1 // import "k8s.io/apimachinery/pkg/apis/meta/v1beta1"
+// Package v1 is the v1 version of the API.
+// +groupName=velero.io
+package v1

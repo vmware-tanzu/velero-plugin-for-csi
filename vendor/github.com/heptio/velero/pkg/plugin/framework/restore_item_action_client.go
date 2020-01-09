@@ -25,8 +25,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	proto "github.com/heptio/velero/pkg/plugin/generated"
-	"github.com/heptio/velero/pkg/plugin/velero"
+	proto "github.com/vmware-tanzu/velero/pkg/plugin/generated"
+	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 )
 
 var _ velero.RestoreItemAction = &RestoreItemActionGRPCClient{}
@@ -56,6 +56,10 @@ func (c *RestoreItemActionGRPCClient) AppliesTo() (velero.ResourceSelector, erro
 	res, err := c.grpcClient.AppliesTo(context.Background(), &proto.RestoreItemActionAppliesToRequest{Plugin: c.plugin})
 	if err != nil {
 		return velero.ResourceSelector{}, fromGRPCError(err)
+	}
+
+	if res.ResourceSelector == nil {
+		return velero.ResourceSelector{}, nil
 	}
 
 	return velero.ResourceSelector{

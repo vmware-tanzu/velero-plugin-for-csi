@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Kubernetes Authors.
+Copyright 2019 the Velero contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,14 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1beta1
+package v1
 
-import "k8s.io/apimachinery/pkg/conversion"
+// PodVolumeOperationProgress represents the progress of a
+// PodVolumeBackup/Restore (restic) operation
+type PodVolumeOperationProgress struct {
+	// +optional
+	TotalBytes int64 `json:"totalBytes,omitempty"`
 
-// Convert_Slice_string_To_v1beta1_IncludeObjectPolicy allows converting a URL query parameter value
-func Convert_Slice_string_To_v1beta1_IncludeObjectPolicy(input *[]string, out *IncludeObjectPolicy, s conversion.Scope) error {
-	if len(*input) > 0 {
-		*out = IncludeObjectPolicy((*input)[0])
-	}
-	return nil
+	// +optional
+	BytesDone int64 `json:"bytesDone,omitempty"`
 }
