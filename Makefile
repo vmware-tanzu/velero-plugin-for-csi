@@ -19,7 +19,7 @@ BIN ?= $(wildcard velero-*)
 # TODO(nrb): FIX IMPORT PATH
 PKG ?= github.com/heptio/velero-csi-plugin
 
-BUILD_IMAGE ?= golang:1.12-stretch
+BUILD_IMAGE ?= golang:1.13-stretch
 
 #TODO(nrb): FIX IMAGE PATH
 IMAGE ?= gcr.io/heptio-images/velero-plugin-example
