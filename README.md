@@ -39,7 +39,7 @@ $ make
 Deploy the driver (see [their docs](https://github.com/kubernetes-sigs/aws-ebs-csi-driver/) for more details)
 
 ```
-kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/aws-ebs-csi-driver/master/deploy/kubernetes/manifest.yaml
+kubectl apply -k "github.com/kubernetes-sigs/aws-ebs-csi-driver/deploy/kubernetes/overlays/stable/?ref=master"
 ```
 
 Apply the storage class
