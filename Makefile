@@ -15,14 +15,14 @@
 # The binary to build (just the basename).
 BIN ?= $(wildcard velero-*)
 
-# This repo's root import path (under GOPATH).
-# TODO(nrb): FIX IMPORT PATH
-PKG ?= github.com/heptio/velero-csi-plugin
 
-BUILD_IMAGE ?= golang:1.12-stretch
+BUILD_IMAGE ?= golang:1.13-stretch
 
-#TODO(nrb): FIX IMAGE PATH
-IMAGE ?= gcr.io/heptio-images/velero-plugin-example
+REGISTRY ?= velero
+IMAGE_NAME ?= $(REGISTRY)/velero-plugin-for-csi
+TAG ?= dev
+
+IMAGE ?= $(IMAGE_NAME):$(TAG)
 
 # Which architecture to build - see $(ALL_ARCH) for options.
 # if the 'local' rule is being run, detect the ARCH from 'go env'
@@ -42,7 +42,6 @@ build-%:
 local: build-dirs
 	GOOS=$(GOOS) \
 	GOARCH=$(GOARCH) \
-	PKG=$(PKG) \
 	BIN=$(BIN) \
 	OUTPUT_DIR=$$(pwd)/_output/bin/$(GOOS)/$(GOARCH) \
 	./hack/build.sh
@@ -57,7 +56,7 @@ _output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs
 		PKG=$(PKG) \
 		BIN=$(BIN) \
 		OUTPUT_DIR=/output/$(GOOS)/$(GOARCH) \
-		go build -v -o _output/bin/$(GOOS)/$(GOARCH)/$(BIN) ./$(BIN)'"
+		./hack/build.sh'"
 
 TTY := $(shell tty -s && echo "-t")
 
@@ -72,11 +71,11 @@ shell: build-dirs
 		-v $$(pwd)/.go/pkg:/go/pkg \
 		-v $$(pwd)/.go/src:/go/src \
 		-v $$(pwd)/.go/std:/go/std \
-		-v $$(pwd):/go/src/$(PKG) \
+		-v $$(pwd):/go/src/velero-plugin-for-csi \
 		-v $$(pwd)/.go/std/$(GOOS)_$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static \
 		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
 		-e CGO_ENABLED=0 \
-		-w /go/src/$(PKG) \
+		-w /go/src/velero-plugin-for-csi \
 		$(BUILD_IMAGE) \
 		/bin/sh $(CMD)
 
@@ -90,13 +89,23 @@ container: all
 
 all-ci: $(addprefix ci-, $(BIN))
 
+.PHONY: modules
+modules:
+	go mod tidy
+
+.PHONY: verify-modules
+verify-modules: modules
+	@if !(git diff --quiet HEAD -- go.sum go.mod); then \
+		echo "go module files are out of date, please commit the changes to go.mod and go.sum"; exit 1; \
+	fi
+
 ci-%:
 	$(MAKE) --no-print-directory BIN=$* ci
 
 test: build-dirs
 	@$(MAKE) shell  CMD="-c 'go test -cover ./velero-csi-plugin'"
 
-ci: all test
+ci: verify-modules all test
 
 clean:
 	@echo "cleaning"
