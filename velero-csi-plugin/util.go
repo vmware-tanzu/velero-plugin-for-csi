@@ -6,15 +6,14 @@ import (
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	snapshotter "github.com/kubernetes-csi/external-snapshotter/v2/pkg/client/clientset/versioned/typed/volumesnapshot/v1beta1"
 	"github.com/pkg/errors"
-
 	corev1api "k8s.io/api/core/v1"
-	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
 
 const (
+	//TODO: use annotation from velero https://github.com/vmware-tanzu/velero/pull/2283
 	resticPodAnnotation = "backup.velero.io/backup-volumes"
 )
 
@@ -123,7 +122,7 @@ func getVolumeSnapshotClassForStorageClass(provisioner string, snapshotGetter sn
 	return nil, errors.Errorf("failed to get volumesnapshotclass for provisioner %s", provisioner)
 }
 
-func getVolumeSnapshotContentForVolumeSnapshot(snapshotContentsGetter snapshotter.VolumeSnapshotContentsGetter, volSnapName string) (*snapshotv1beta1api.VolumeSnapshotContent, error) {
+func getVolumeSnapshotContentForVolumeSnapshot(volSnapName string, snapshotContentsGetter snapshotter.VolumeSnapshotContentsGetter) (*snapshotv1beta1api.VolumeSnapshotContent, error) {
 	for {
 		snapshotContents, err := snapshotContentsGetter.VolumeSnapshotContents().List(metav1.ListOptions{})
 		if err != nil {
@@ -131,7 +130,8 @@ func getVolumeSnapshotContentForVolumeSnapshot(snapshotContentsGetter snapshotte
 		}
 
 		for _, sc := range snapshotContents.Items {
-			if sc.Spec.VolumeSnapshotRef.Name == volSnapName {
+			if sc.Spec.VolumeSnapshotRef.APIVersion == snapshotv1beta1api.SchemeGroupVersion.String() &&
+				sc.Spec.VolumeSnapshotRef.Name == volSnapName {
 				return &sc, nil
 			}
 		}
@@ -139,5 +139,5 @@ func getVolumeSnapshotContentForVolumeSnapshot(snapshotContentsGetter snapshotte
 			break
 		}
 	}
-	return nil, nil
+	return nil, errors.Errorf("failed to find volumesnapshotcontent for volumesnapshot %s", volSnapName)
 }

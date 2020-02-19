@@ -3,6 +3,8 @@ package main
 import (
 	"testing"
 
+	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	snapshotFake "github.com/kubernetes-csi/external-snapshotter/v2/pkg/client/clientset/versioned/fake"
 	corev1api "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -135,17 +137,17 @@ func TestGetPVForPVC(t *testing.T) {
 		actualPV, actualError := getPVForPVC(tc.inPVC, fakeClient.CoreV1())
 
 		if tc.expectError && actualError == nil {
-			t.Fatalf("getPVForPVC failed for %s, Want error; Got nil error", tc.name)
+			t.Fatalf("getPVForPVC failed for [%s], Want error; Got nil error", tc.name)
 		}
 		if tc.expectError && actualPV != nil {
-			t.Fatalf("getPVForPVC failed for %s, Want PV: nil; Got PV: %q", tc.name, actualPV)
+			t.Fatalf("getPVForPVC failed for [%s], Want PV: nil; Got PV: %q", tc.name, actualPV)
 		}
 
 		if !tc.expectError && actualError != nil {
-			t.Fatalf("getPVForPVC failed for %s, Want: nil error; Got: %v", tc.name, actualError)
+			t.Fatalf("getPVForPVC failed for [%s], Want: nil error; Got: %v", tc.name, actualError)
 		}
 		if !tc.expectError && actualPV.Name != tc.expectedPV.Name {
-			t.Fatalf("getPVForPVC failed for %s, Want PV with name %q; Got PV with name %q", tc.name, tc.expectedPV.Name, actualPV.Name)
+			t.Fatalf("getPVForPVC failed for [%s], Want PV with name %q; Got PV with name %q", tc.name, tc.expectedPV.Name, actualPV.Name)
 		}
 	}
 }
@@ -183,6 +185,22 @@ func TestGetPodsUsingPVC(t *testing.T) {
 							PersistentVolumeClaim: &corev1api.PersistentVolumeClaimVolumeSource{
 								ClaimName: "csi-pvc1",
 							},
+						},
+					},
+				},
+			},
+		},
+		&corev1api.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "pod3",
+				Namespace: "default",
+			},
+			Spec: corev1api.PodSpec{
+				Volumes: []corev1api.Volume{
+					{
+						Name: "csi-vol1",
+						VolumeSource: corev1api.VolumeSource{
+							EmptyDir: &corev1api.EmptyDirVolumeSource{},
 						},
 					},
 				},
@@ -236,7 +254,7 @@ func TestGetPodsUsingPVC(t *testing.T) {
 		{
 			name:             "should find 0 pods in non-existent namespace",
 			pvcNamespace:     "does-not-exist",
-			pvcName:          "unused-pvc",
+			pvcName:          "csi-pvc1",
 			expectedPodCount: 0,
 		},
 	}
@@ -244,11 +262,11 @@ func TestGetPodsUsingPVC(t *testing.T) {
 	for _, tc := range testCases {
 		actualPods, err := getPodsUsingPVC(tc.pvcNamespace, tc.pvcName, fakeClient.CoreV1())
 		if err != nil {
-			t.Fatalf("getPodsUsingPVC failed for %s, Want error=nil; Got error=%v", tc.name, err)
+			t.Fatalf("getPodsUsingPVC failed for [%s], Want error=nil; Got error=%v", tc.name, err)
 		}
 
 		if len(actualPods) != tc.expectedPodCount {
-			t.Fatalf("getPodsUsingPVC failed for %s, unexpected number of pods in result; Want: %d; Got: %d", tc.name, tc.expectedPodCount, len(actualPods))
+			t.Fatalf("getPodsUsingPVC failed for [%s], unexpected number of pods in result; Want: %d; Got: %d", tc.name, tc.expectedPodCount, len(actualPods))
 		}
 	}
 }
@@ -322,7 +340,7 @@ func TestGetPodVolumeNameForPVC(t *testing.T) {
 			pod: corev1api.Pod{
 				Spec: corev1api.PodSpec{},
 			},
-			pvcName:     "vsi-pvc2",
+			pvcName:     "csi-pvc2",
 			expectError: true,
 		},
 		{
@@ -349,10 +367,10 @@ func TestGetPodVolumeNameForPVC(t *testing.T) {
 	for _, tc := range testCases {
 		actualVolumeName, err := getPodVolumeNameForPVC(tc.pod, tc.pvcName)
 		if tc.expectError && err == nil {
-			t.Fatalf("getPodVolumeNameForPVC failed for %s, Want error; Got nil error", tc.name)
+			t.Fatalf("getPodVolumeNameForPVC failed for [%s], Want error; Got nil error", tc.name)
 		}
 		if !tc.expectError && tc.expectedVolumeName != actualVolumeName {
-			t.Fatalf("getPodVolumeNameForPVC failed for %s, unexpected podVolumename returned. Want %s; Got %s", tc.name, tc.expectedVolumeName, actualVolumeName)
+			t.Fatalf("getPodVolumeNameForPVC failed for [%s], unexpected podVolumename returned. Want %s; Got %s", tc.name, tc.expectedVolumeName, actualVolumeName)
 		}
 	}
 }
@@ -434,6 +452,373 @@ func TestGetPodVolumesUsingRestic(t *testing.T) {
 		if len(tc.expectedResticVolumes) != len(actualResticVolumes) {
 			t.Fatalf("getPodVolumesUsingRestic failed for %q, unexpected number of volumes using resitc, Want: %d; Got: %d", tc.name, len(tc.expectedResticVolumes),
 				len(actualResticVolumes))
+		}
+	}
+}
+
+func TestContains(t *testing.T) {
+	testCases := []struct {
+		name           string
+		inSlice        []string
+		inKey          string
+		expectedResult bool
+	}{
+		{
+			name:           "should find the key",
+			inSlice:        []string{"key1", "key2", "key3", "key4", "key5"},
+			inKey:          "key3",
+			expectedResult: true,
+		},
+		{
+			name:           "should not find the key in non-empty slice",
+			inSlice:        []string{"key1", "key2", "key3", "key4", "key5"},
+			inKey:          "key300",
+			expectedResult: false,
+		},
+		{
+			name:           "should not find key in empty slice",
+			inSlice:        []string{},
+			inKey:          "key300",
+			expectedResult: false,
+		},
+		{
+			name:           "should not find key in nil slice",
+			inSlice:        nil,
+			inKey:          "key300",
+			expectedResult: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		actualResult := contains(tc.inSlice, tc.inKey)
+		if actualResult != tc.expectedResult {
+			t.Fatalf("contains failed for [%s], Want: %t; Got: %t", tc.name, tc.expectedResult, actualResult)
+		}
+	}
+}
+
+func TestIsPVCBackedUpByRestic(t *testing.T) {
+
+	objs := []runtime.Object{
+		&corev1api.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "pod1",
+				Namespace: "default",
+			},
+			Spec: corev1api.PodSpec{
+				Volumes: []corev1api.Volume{
+					{
+						Name: "csi-vol1",
+						VolumeSource: corev1api.VolumeSource{
+							PersistentVolumeClaim: &corev1api.PersistentVolumeClaimVolumeSource{
+								ClaimName: "csi-pvc1",
+							},
+						},
+					},
+				},
+			},
+		},
+		&corev1api.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "pod2",
+				Namespace: "default",
+				Annotations: map[string]string{
+					"backup.velero.io/backup-volumes": "csi-vol1",
+				},
+			},
+			Spec: corev1api.PodSpec{
+				Volumes: []corev1api.Volume{
+					{
+						Name: "csi-vol1",
+						VolumeSource: corev1api.VolumeSource{
+							PersistentVolumeClaim: &corev1api.PersistentVolumeClaimVolumeSource{
+								ClaimName: "csi-pvc1",
+							},
+						},
+					},
+				},
+			},
+		},
+		&corev1api.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "pod3",
+				Namespace: "default",
+			},
+			Spec: corev1api.PodSpec{
+				Volumes: []corev1api.Volume{
+					{
+						Name: "csi-vol1",
+						VolumeSource: corev1api.VolumeSource{
+							EmptyDir: &corev1api.EmptyDirVolumeSource{},
+						},
+					},
+				},
+			},
+		},
+		&corev1api.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "awesome-pod-1",
+				Namespace: "awesome-ns",
+			},
+			Spec: corev1api.PodSpec{
+				Volumes: []corev1api.Volume{
+					{
+						Name: "csi-vol1",
+						VolumeSource: corev1api.VolumeSource{
+							PersistentVolumeClaim: &corev1api.PersistentVolumeClaimVolumeSource{
+								ClaimName: "awesome-csi-pvc1",
+							},
+						},
+					},
+				},
+			},
+		},
+		&corev1api.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "awesome-pod-2",
+				Namespace: "awesome-ns",
+			},
+			Spec: corev1api.PodSpec{
+				Volumes: []corev1api.Volume{
+					{
+						Name: "csi-vol1",
+						VolumeSource: corev1api.VolumeSource{
+							PersistentVolumeClaim: &corev1api.PersistentVolumeClaimVolumeSource{
+								ClaimName: "awesome-csi-pvc1",
+							},
+						},
+					},
+				},
+			},
+		},
+		&corev1api.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "pod1",
+				Namespace: "restic-ns",
+				Annotations: map[string]string{
+					"backup.velero.io/backup-volumes": "csi-vol1",
+				},
+			},
+			Spec: corev1api.PodSpec{
+				Volumes: []corev1api.Volume{
+					{
+						Name: "csi-vol1",
+						VolumeSource: corev1api.VolumeSource{
+							PersistentVolumeClaim: &corev1api.PersistentVolumeClaimVolumeSource{
+								ClaimName: "csi-pvc1",
+							},
+						},
+					},
+				},
+			},
+		},
+		&corev1api.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "pod2",
+				Namespace: "restic-ns",
+				Annotations: map[string]string{
+					"backup.velero.io/backup-volumes": "csi-vol1",
+				},
+			},
+			Spec: corev1api.PodSpec{
+				Volumes: []corev1api.Volume{
+					{
+						Name: "csi-vol1",
+						VolumeSource: corev1api.VolumeSource{
+							PersistentVolumeClaim: &corev1api.PersistentVolumeClaimVolumeSource{
+								ClaimName: "csi-pvc1",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	fakeClient := fake.NewSimpleClientset(objs...)
+
+	testCases := []struct {
+		name                 string
+		inPVCNamespace       string
+		inPVCName            string
+		expectedIsResticUsed bool
+	}{
+		{
+			name:                 "2 pods using PVC, 1 pod using restic",
+			inPVCNamespace:       "default",
+			inPVCName:            "csi-pvc1",
+			expectedIsResticUsed: true,
+		},
+		{
+			name:                 "2 pods using PVC, 2 pods using restic",
+			inPVCNamespace:       "restic-ns",
+			inPVCName:            "csi-pvc1",
+			expectedIsResticUsed: true,
+		},
+		{
+			name:                 "2 pods using PVC, 0 pods using restic",
+			inPVCNamespace:       "awesome-ns",
+			inPVCName:            "csi-pvc1",
+			expectedIsResticUsed: false,
+		},
+		{
+			name:                 "0 pods using PVC",
+			inPVCNamespace:       "default",
+			inPVCName:            "does-not-exist",
+			expectedIsResticUsed: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		actualIsResticUsed, _ := isPVCBackedUpByRestic(tc.inPVCNamespace, tc.inPVCName, fakeClient.CoreV1())
+		if actualIsResticUsed != tc.expectedIsResticUsed {
+			t.Fatalf("isPVCBackedUpByRestic failed for [%s], Want: %t; Got: %t", tc.name, tc.expectedIsResticUsed, actualIsResticUsed)
+		}
+	}
+}
+
+func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
+	hostpathClass := &snapshotv1beta1api.VolumeSnapshotClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "hostpath",
+		},
+		Driver: "hostpath.csi.k8s.io",
+	}
+
+	fooClass := &snapshotv1beta1api.VolumeSnapshotClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "foo",
+		},
+		Driver: "foo.csi.k8s.io",
+	}
+
+	barClass := &snapshotv1beta1api.VolumeSnapshotClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "bar",
+		},
+		Driver: "bar.csi.k8s.io",
+	}
+
+	bazClass := &snapshotv1beta1api.VolumeSnapshotClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "baz",
+		},
+		Driver: "baz.csi.k8s.io",
+	}
+
+	objs := []runtime.Object{hostpathClass, fooClass, barClass, bazClass}
+	fakeClient := snapshotFake.NewSimpleClientset(objs...)
+
+	testCases := []struct {
+		name        string
+		driverName  string
+		expectedVSC *snapshotv1beta1api.VolumeSnapshotClass
+		expectError bool
+	}{
+		{
+			name:        "should find hostpath volumesnapshotclass",
+			driverName:  "hostpath.csi.k8s.io",
+			expectedVSC: hostpathClass,
+			expectError: false,
+		},
+		{
+			name:        "should find foo volumesnapshotclass",
+			driverName:  "foo.csi.k8s.io",
+			expectedVSC: fooClass,
+			expectError: false,
+		},
+		{
+			name:        "should find var volumesnapshotclass",
+			driverName:  "bar.csi.k8s.io",
+			expectedVSC: barClass,
+			expectError: false,
+		},
+		{
+			name:        "should find foo volumesnapshotclass",
+			driverName:  "baz.csi.k8s.io",
+			expectedVSC: bazClass,
+			expectError: false,
+		},
+		{
+			name:        "should not find does-not-exist volumesnapshotclass",
+			driverName:  "not-found.csi.k8s.io",
+			expectedVSC: nil,
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		actualVSC, actualError := getVolumeSnapshotClassForStorageClass(tc.driverName, fakeClient.SnapshotV1beta1())
+
+		if tc.expectError && actualError == nil {
+			t.Fatalf("getVolumeSnapshotClassForStorageClass failed for [%s]. Want error; Got no error", tc.name)
+		}
+		if tc.expectError && actualVSC != nil {
+			t.Fatalf("getVolumeSnapshotClassForStorageClass failed for [%s], Want: nil result; Got non-nil result", tc.name)
+		}
+		if tc.expectError {
+			continue
+		}
+
+		if tc.expectedVSC.Name != actualVSC.Name {
+			t.Fatalf("getVolumeSnapshotClassForStorageClass failed for [%s], unexpected volumesnapshotclass name returned. Want: %s; Got:%s", tc.name, tc.expectedVSC.Name, actualVSC.Name)
+		}
+
+		if tc.expectedVSC.Driver != actualVSC.Driver {
+			t.Fatalf("getVolumeSnapshotClassForStorageClass failed for [%s], unexpected driver name returned. Want: %s; Got:%s", tc.name, tc.expectedVSC.Driver, actualVSC.Driver)
+		}
+	}
+}
+
+func TestGetVolumeSnapshotContentForVolumeSnapshot(t *testing.T) {
+	vscObj := &snapshotv1beta1api.VolumeSnapshotContent{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "snapcontent-7d1bdbd1-d10d-439c-8d8e-e1c2565ddc53",
+		},
+		Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{
+			VolumeSnapshotRef: corev1api.ObjectReference{
+				Name:       "vol-snap-1",
+				APIVersion: snapshotv1beta1api.SchemeGroupVersion.String(),
+			},
+		},
+	}
+
+	objs := []runtime.Object{vscObj}
+	fakeClient := snapshotFake.NewSimpleClientset(objs...)
+	testCases := []struct {
+		name        string
+		volSnapName string
+		exepctedVSC *snapshotv1beta1api.VolumeSnapshotContent
+		expectError bool
+	}{
+		{
+			name:        "should find volumesnapshotcontent for volumesnapshot name",
+			volSnapName: "vol-snap-1",
+			exepctedVSC: vscObj,
+			expectError: false,
+		},
+		{
+			name:        "should fail to find volumesnapshotcontent for volumesnapshot name and return error and nil result",
+			volSnapName: "does-not-exist",
+			exepctedVSC: nil,
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		actualVSC, actualError := getVolumeSnapshotContentForVolumeSnapshot(tc.volSnapName, fakeClient.SnapshotV1beta1())
+
+		if tc.expectError && actualError == nil {
+			t.Fatalf("getVolumeSnapshotContentForVolumeSnapshot failed for [%s], Want non-nil error; Got nil error", tc.name)
+		}
+		if tc.expectError && actualVSC != nil {
+			t.Fatalf("getVolumeSnapshotContentForVolumeSnapshot failed for [%s], Want nil result; Got non-nil result", tc.name)
+		}
+		if tc.expectError {
+			continue
+		}
+
+		if actualVSC.Name != tc.exepctedVSC.Name {
+			t.Fatalf("getVolumeSnapshotContentForVolumeSnapshot failed for [%s], unexpected volumesnapshotcontent name; Want  %s; Got %s", tc.name, tc.exepctedVSC.Name, actualVSC.Name)
 		}
 	}
 }

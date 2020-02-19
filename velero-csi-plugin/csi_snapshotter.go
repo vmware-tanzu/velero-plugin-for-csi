@@ -144,7 +144,7 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.
 	accessor.SetAnnotations(annotations)
 
 	//TODO: add retry logic here. CSI driver may take time to reconcile the snapshotcontents object
-	snapshotContents, err := getVolumeSnapshotContentForVolumeSnapshot(snapshotClient.SnapshotV1beta1(), upd.Name)
+	snapshotContents, err := getVolumeSnapshotContentForVolumeSnapshot(upd.Name, snapshotClient.SnapshotV1beta1())
 
 	// TODO: Create GroupResource obejects for volumesnapshot objects
 	additionalItems := []velero.ResourceIdentifier{
