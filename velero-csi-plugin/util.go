@@ -1,11 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	snapshotter "github.com/kubernetes-csi/external-snapshotter/v2/pkg/client/clientset/versioned/typed/volumesnapshot/v1beta1"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	corev1api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -35,21 +38,16 @@ func getPVForPVC(pvc *corev1api.PersistentVolumeClaim, corev1 corev1client.Persi
 
 func getPodsUsingPVC(pvcNamespace, pvcName string, corev1 corev1client.PodsGetter) ([]corev1api.Pod, error) {
 	podsUsingPVC := []corev1api.Pod{}
-	for {
-		podList, err := corev1.Pods(pvcNamespace).List(metav1.ListOptions{})
-		if err != nil {
-			return podsUsingPVC, err
-		}
+	podList, err := corev1.Pods(pvcNamespace).List(metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
 
-		for _, p := range podList.Items {
-			for _, v := range p.Spec.Volumes {
-				if v.PersistentVolumeClaim != nil && v.PersistentVolumeClaim.ClaimName == pvcName {
-					podsUsingPVC = append(podsUsingPVC, p)
-				}
+	for _, p := range podList.Items {
+		for _, v := range p.Spec.Volumes {
+			if v.PersistentVolumeClaim != nil && v.PersistentVolumeClaim.ClaimName == pvcName {
+				podsUsingPVC = append(podsUsingPVC, p)
 			}
-		}
-		if podList.Continue == "" {
-			break
 		}
 	}
 
@@ -104,40 +102,40 @@ func isPVCBackedUpByRestic(pvcNamespace, pvcName string, podClient corev1client.
 	return false, nil
 }
 
-func getVolumeSnapshotClassForStorageClass(provisioner string, snapshotGetter snapshotter.VolumeSnapshotClassesGetter) (*snapshotv1beta1api.VolumeSnapshotClass, error) {
-	for {
-		snapshotClasses, err := snapshotGetter.VolumeSnapshotClasses().List(metav1.ListOptions{})
-		if err != nil {
-			return nil, errors.Wrap(err, "error listing volumesnapshot classes")
-		}
-		for _, sc := range snapshotClasses.Items {
-			if sc.Driver == provisioner {
-				return &sc, nil
-			}
-		}
-		if snapshotClasses.Continue == "" {
-			break
+func getVolumeSnapshotClassForStorageClass(provisioner string, snapshotClient snapshotter.SnapshotV1beta1Interface) (*snapshotv1beta1api.VolumeSnapshotClass, error) {
+	snapshotClasses, err := snapshotClient.VolumeSnapshotClasses().List(metav1.ListOptions{})
+	if err != nil {
+		return nil, errors.Wrap(err, "error listing volumesnapshot classes")
+	}
+	for _, sc := range snapshotClasses.Items {
+		if sc.Driver == provisioner {
+			return &sc, nil
 		}
 	}
 	return nil, errors.Errorf("failed to get volumesnapshotclass for provisioner %s", provisioner)
 }
 
-func getVolumeSnapshotContentForVolumeSnapshot(volSnapName string, snapshotContentsGetter snapshotter.VolumeSnapshotContentsGetter) (*snapshotv1beta1api.VolumeSnapshotContent, error) {
+func getVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1beta1api.VolumeSnapshot, snapshotClient snapshotter.SnapshotV1beta1Interface, log logrus.FieldLogger) (*snapshotv1beta1api.VolumeSnapshotContent, error) {
+	var snapshotContent *snapshotv1beta1api.VolumeSnapshotContent
 	for {
-		snapshotContents, err := snapshotContentsGetter.VolumeSnapshotContents().List(metav1.ListOptions{})
+		vs, err := snapshotClient.VolumeSnapshots(volSnap.Namespace).Get(volSnap.Name, metav1.GetOptions{})
 		if err != nil {
-			return nil, errors.WithStack(err)
+			return nil, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshot %s/%s", volSnap.Namespace, volSnap.Name))
 		}
 
-		for _, sc := range snapshotContents.Items {
-			if sc.Spec.VolumeSnapshotRef.APIVersion == snapshotv1beta1api.SchemeGroupVersion.String() &&
-				sc.Spec.VolumeSnapshotRef.Name == volSnapName {
-				return &sc, nil
-			}
+		// TODO: add timeout
+		if vs.Status == nil || vs.Status.BoundVolumeSnapshotContentName == nil {
+			log.Infof("Waiting for CSI driver to reconcile volumesnapshot %s/%s. Retrying in 5s", volSnap.Namespace, volSnap.Name)
+			time.Sleep(5 * time.Second)
+			continue
 		}
-		if snapshotContents.Continue == "" {
-			break
+		snapshotContent, err = snapshotClient.VolumeSnapshotContents().Get(*vs.Status.BoundVolumeSnapshotContentName, metav1.GetOptions{})
+		if err != nil {
+			return nil, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotcontent %s for volumesnapshot %s/%s", *vs.Status.BoundVolumeSnapshotContentName, volSnap.Namespace, volSnap.Name))
 		}
+
+		break
 	}
-	return nil, errors.Errorf("failed to find volumesnapshotcontent for volumesnapshot %s", volSnapName)
+
+	return snapshotContent, nil
 }

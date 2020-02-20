@@ -1,5 +1,5 @@
 /*
-Copyright 2017, 2019 the Velero contributors.
+Copyright 2017, 2019, 2020 the Velero contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
+
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	snapshotter "github.com/kubernetes-csi/external-snapshotter/v2/pkg/client/clientset/versioned"
 	"github.com/pkg/errors"
@@ -77,45 +79,52 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.
 		return nil, nil, errors.WithStack(err)
 	}
 
-	// Do nothing if restic is used to backup this PV
-	isResticUsed, err := isPVCBackedUpByRestic(pvc.Namespace, pvc.Name, client.CoreV1())
-	if err != nil {
-		return nil, nil, errors.WithStack(err)
-	}
-	if isResticUsed {
-		p.log.Infof("Nothing to do for PVC %s/%s is backed up using restic")
-		return item, nil, nil
-	}
-
+	p.log.Debugf("Fetching underlying PV for PVC %s", fmt.Sprintf("%s/%s", pvc.Namespace, pvc.Name))
 	// Do nothing if this is not a CSI provisioned volume
 	pv, err := getPVForPVC(&pvc, client.CoreV1())
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
 	}
 	if pv.Spec.PersistentVolumeSource.CSI == nil {
-		p.log.Infof("Nothing to do for PVC %s/%s, PV %s is not a CSI volume", pvc.Namespace, pvc.Name, pv.Name)
+		p.log.Infof("Skipping PVC %s/%s, associated PV %s is not a CSI volume", pvc.Namespace, pvc.Name, pv.Name)
+		return item, nil, nil
+	}
+
+	// Do nothing if restic is used to backup this PV
+	isResticUsed, err := isPVCBackedUpByRestic(pvc.Namespace, pvc.Name, client.CoreV1())
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
+	}
+	if isResticUsed {
+		p.log.Infof("Skipping  PVC %s/%s, PV will be backed up using restic", pvc.Namespace, pvc.Name, pv.Name)
 		return item, nil, nil
 	}
 
 	// no storage class: we don't know how to map to a VolumeSnapshotClass
 	if pvc.Spec.StorageClassName == nil {
-		return item, nil, errors.Errorf("Cannot snpashot PVC %s/%s, PVC has no storage class.", pvc.Namespace, pvc.Name)
+		return item, nil, errors.Errorf("Cannot snapshot PVC %s/%s, PVC has no storage class.", pvc.Namespace, pvc.Name)
 	}
 
+	p.log.Infof("Fetching storage class for PV %s", *pvc.Spec.StorageClassName)
 	storageClass, err := client.StorageV1().StorageClasses().Get(*pvc.Spec.StorageClassName, metav1.GetOptions{})
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error getting storage class")
 	}
-
+	p.log.Debugf("Fetching volumesnapshot class for %s", storageClass.Provisioner)
 	snapshotClass, err := getVolumeSnapshotClassForStorageClass(storageClass.Provisioner, snapshotClient.SnapshotV1beta1())
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "failed to get volumesnapshotclass for storageclass %s", storageClass.Name)
 	}
+	p.log.Infof("volumesnapshot class=%s", snapshotClass.Name)
 
 	// Craft the snapshot object to be created
 	snapshot := snapshotv1beta1api.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "velero-" + pvc.Name + "-",
+			Namespace:    pvc.Namespace,
+			Annotations: map[string]string{
+				velerov1api.BackupNameLabel: backup.Name,
+			},
 		},
 		Spec: snapshotv1beta1api.VolumeSnapshotSpec{
 			Source: snapshotv1beta1api.VolumeSnapshotSource{
@@ -129,6 +138,7 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "error creating volume snapshot")
 	}
+	p.log.Infof("Created volumesnapshot %s", fmt.Sprintf("%s/%s", upd.Namespace, upd.Name))
 
 	accessor, err := meta.Accessor(item)
 	if err != nil {
@@ -143,10 +153,16 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.
 	annotations[velerov1api.BackupNameLabel] = backup.Name
 	accessor.SetAnnotations(annotations)
 
-	//TODO: add retry logic here. CSI driver may take time to reconcile the snapshotcontents object
-	snapshotContents, err := getVolumeSnapshotContentForVolumeSnapshot(upd.Name, snapshotClient.SnapshotV1beta1())
+	p.log.Info("Fetching volumesnapshotcontent for volumesnapshot")
+	snapshotContent, err := getVolumeSnapshotContentForVolumeSnapshot(upd, snapshotClient.SnapshotV1beta1(), p.log)
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
+	}
+
+	p.log.Infof("Volumesnapshotcontent for volumesnapshot %s is %s", fmt.Sprintf("%s/%s", upd.Namespace, upd.Name), snapshotContent.Name)
 
 	// TODO: Create GroupResource obejects for volumesnapshot objects
+	// https://github.com/vmware-tanzu/velero/pull/2288
 	additionalItems := []velero.ResourceIdentifier{
 		{
 			GroupResource: schema.GroupResource{
@@ -160,7 +176,7 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.
 				Group:    snapshotv1beta1api.GroupName,
 				Resource: "volumesnapshots",
 			},
-			Namespace: pvc.Namespace,
+			Namespace: upd.Namespace,
 			Name:      upd.Name,
 		},
 		{
@@ -168,8 +184,13 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.
 				Group:    snapshotv1beta1api.GroupName,
 				Resource: "volumesnapshotcontents",
 			},
-			Name: snapshotContents.Name,
+			Name: snapshotContent.Name,
 		},
+	}
+
+	p.log.Debug("Listing additional items to backup")
+	for _, ai := range additionalItems {
+		p.log.Debugf("%s: %s", ai.GroupResource.String(), ai.Name)
 	}
 
 	return item, additionalItems, nil

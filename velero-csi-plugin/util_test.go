@@ -5,6 +5,7 @@ import (
 
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	snapshotFake "github.com/kubernetes-csi/external-snapshotter/v2/pkg/client/clientset/versioned/fake"
+	"github.com/sirupsen/logrus"
 	corev1api "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -770,9 +771,10 @@ func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
 }
 
 func TestGetVolumeSnapshotContentForVolumeSnapshot(t *testing.T) {
+	vscName := "snapcontent-7d1bdbd1-d10d-439c-8d8e-e1c2565ddc53"
 	vscObj := &snapshotv1beta1api.VolumeSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "snapcontent-7d1bdbd1-d10d-439c-8d8e-e1c2565ddc53",
+			Name: vscName,
 		},
 		Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{
 			VolumeSnapshotRef: corev1api.ObjectReference{
@@ -782,39 +784,64 @@ func TestGetVolumeSnapshotContentForVolumeSnapshot(t *testing.T) {
 		},
 	}
 
-	objs := []runtime.Object{vscObj}
+	validVS := &snapshotv1beta1api.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vs",
+			Namespace: "default",
+		},
+		Status: &snapshotv1beta1api.VolumeSnapshotStatus{
+			BoundVolumeSnapshotContentName: &vscName,
+		},
+	}
+
+	notFound := "does-not-exist"
+	vsWithVSCNotFound := &snapshotv1beta1api.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      notFound,
+			Namespace: "default",
+		},
+		Status: &snapshotv1beta1api.VolumeSnapshotStatus{
+			BoundVolumeSnapshotContentName: &notFound,
+		},
+	}
+
+	objs := []runtime.Object{vscObj, validVS, vsWithVSCNotFound}
 	fakeClient := snapshotFake.NewSimpleClientset(objs...)
 	testCases := []struct {
 		name        string
-		volSnapName string
+		volSnap     *snapshotv1beta1api.VolumeSnapshot
 		exepctedVSC *snapshotv1beta1api.VolumeSnapshotContent
 		expectError bool
 	}{
 		{
-			name:        "should find volumesnapshotcontent for volumesnapshot name",
-			volSnapName: "vol-snap-1",
+			name:        "should find volumesnapshotcontent for volumesnapshot",
+			volSnap:     validVS,
 			exepctedVSC: vscObj,
 			expectError: false,
 		},
 		{
-			name:        "should fail to find volumesnapshotcontent for volumesnapshot name and return error and nil result",
-			volSnapName: "does-not-exist",
+			name:        "should not find volumesnapshotcontent for volumesnapshot with non-existing snapshotcontent name in status.BoundVolumeSnapshotContentName",
+			volSnap:     vsWithVSCNotFound,
 			exepctedVSC: nil,
 			expectError: true,
 		},
 	}
 
 	for _, tc := range testCases {
-		actualVSC, actualError := getVolumeSnapshotContentForVolumeSnapshot(tc.volSnapName, fakeClient.SnapshotV1beta1())
-
+		actualVSC, actualError := getVolumeSnapshotContentForVolumeSnapshot(tc.volSnap, fakeClient.SnapshotV1beta1(), logrus.New().WithField("fake", "test"))
 		if tc.expectError && actualError == nil {
 			t.Fatalf("getVolumeSnapshotContentForVolumeSnapshot failed for [%s], Want non-nil error; Got nil error", tc.name)
 		}
-		if tc.expectError && actualVSC != nil {
+
+		if tc.exepctedVSC == nil && actualVSC != nil {
 			t.Fatalf("getVolumeSnapshotContentForVolumeSnapshot failed for [%s], Want nil result; Got non-nil result", tc.name)
 		}
-		if tc.expectError {
+		if tc.exepctedVSC == nil {
 			continue
+		}
+
+		if actualVSC == nil && tc.exepctedVSC != nil {
+			t.Fatalf("getVolumeSnapshotContentForVolumeSnapshot failed for [%s], Want non-nil result; Got nil result", tc.name)
 		}
 
 		if actualVSC.Name != tc.exepctedVSC.Name {
