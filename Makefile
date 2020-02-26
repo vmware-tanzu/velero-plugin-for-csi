@@ -1,4 +1,4 @@
-# Copyright 2017, 2019 the Velero contributors.
+# Copyright 2017, 2019, 2020 the Velero contributors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -103,7 +103,7 @@ ci-%:
 	$(MAKE) --no-print-directory BIN=$* ci
 
 test: build-dirs
-	@$(MAKE) shell  CMD="-c 'go test -cover ./velero-csi-plugin'"
+	@$(MAKE) shell  CMD="-c 'go test -v -cover ./velero-csi-plugin'"
 
 ci: verify-modules all test
 
