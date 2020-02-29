@@ -17,12 +17,14 @@ limitations under the License.
 package main
 
 import (
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+
+	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 )
 
@@ -45,10 +47,23 @@ func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vele
 		return &velero.RestoreItemActionExecuteOutput{}, err
 	}
 
-	// This section of code used to set the VolumeSnapshot.Spec.Source field to nil
-	// As of the beta, this is no longer relevant, and the code has been removed.
+	p.log.Infof("VSRestorer for %s/%s", vs.Namespace, vs.Name)
 
-	vsMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vs)
+	vscName := *vs.Status.BoundVolumeSnapshotContentName
+	toRestore := snapshotv1beta1api.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: vs.GenerateName,
+			Name:         vs.Name,
+			Namespace:    vs.Namespace,
+		},
+		Spec: snapshotv1beta1api.VolumeSnapshotSpec{
+			Source: snapshotv1beta1api.VolumeSnapshotSource{
+				VolumeSnapshotContentName: &vscName,
+			},
+		},
+	}
+
+	vsMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&toRestore)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

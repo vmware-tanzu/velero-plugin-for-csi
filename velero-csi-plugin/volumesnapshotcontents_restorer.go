@@ -17,13 +17,15 @@ limitations under the License.
 package main
 
 import (
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+
+	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	core_v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 )
 
@@ -46,26 +48,37 @@ func (p *VSCRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vel
 		return &velero.RestoreItemActionExecuteOutput{}, err
 	}
 
-	_, snapshotClient, err := getClients()
+	p.log.Infof("VSCRestorer for VSC: %s", vsc.Name)
+
+	vscSnapshotHandle := *vsc.Status.SnapshotHandle
+	vscSnapshotClass := *vsc.Spec.VolumeSnapshotClassName
+	toRestore := snapshotv1beta1api.VolumeSnapshotContent{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: vsc.Name,
+		},
+		Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{
+			DeletionPolicy: snapshotv1beta1api.VolumeSnapshotContentRetain,
+			Driver:         vsc.Spec.Driver,
+			Source: snapshotv1beta1api.VolumeSnapshotContentSource{
+				SnapshotHandle: &vscSnapshotHandle,
+			},
+			VolumeSnapshotClassName: &vscSnapshotClass,
+			VolumeSnapshotRef: core_v1.ObjectReference{
+				APIVersion: vsc.Spec.VolumeSnapshotRef.APIVersion,
+				Kind:       vsc.Spec.VolumeSnapshotRef.Kind,
+				Name:       vsc.Spec.VolumeSnapshotRef.Name,
+				Namespace:  vsc.Spec.VolumeSnapshotRef.Namespace,
+			},
+		},
+	}
+
+	vscMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&toRestore)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	snapRef := vsc.Spec.VolumeSnapshotRef
-	volumeSnapshot, err := snapshotClient.SnapshotV1beta1().VolumeSnapshots(snapRef.Namespace).Get(snapRef.Name, metav1.GetOptions{})
-	//TODO: better error handling, account for a 404
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	// Make sure we're referencing the new UID for the restored VolumeSnapshot
-	// This is likely unnecessary, but what _is_ necessary is that the old UID be cleared.
-	vsc.Spec.VolumeSnapshotRef.UID = volumeSnapshot.UID
-
-	vscMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vsc)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
+	p.log.Infof("toRestore Source volume handle: %s, Source: snapshothandle: %s ", *toRestore.Spec.Source.VolumeHandle, *toRestore.Spec.Source.SnapshotHandle)
+	p.log.Infof("toRestore Status snapshot handle: %s", *toRestore.Status.SnapshotHandle)
 
 	p.log.Info("Returning from VSCRestorer")
 

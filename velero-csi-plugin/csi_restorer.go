@@ -17,14 +17,18 @@ limitations under the License.
 package main
 
 import (
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+
+	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	core_v1 "k8s.io/api/core/v1"
 	corev1api "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/api/meta"
 )
 
 // CSIRestorer is a restore item action plugin for Velero
@@ -63,15 +67,25 @@ func (p *CSIRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vel
 		return nil, errors.Errorf("Could not find volume snapshot name on PVC")
 	}
 
-	g := "snapshot.storage.k8s.io"
-	pvc.Spec.DataSource = &corev1api.TypedLocalObjectReference{
-		// This needs to be a pointer, since nil is used for the default group
-		APIGroup: &g,
-		Kind:     "VolumeSnapshot",
-		Name:     volumeSnapshotName,
+	sc := *pvc.Spec.StorageClassName
+	toRestore := corev1api.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pvc.Name,
+			Namespace: pvc.Namespace,
+		},
+		Spec: corev1api.PersistentVolumeClaimSpec{
+			StorageClassName: &sc,
+			DataSource: &core_v1.TypedLocalObjectReference{
+				APIGroup: &snapshotv1beta1api.SchemeGroupVersion.Group,
+				Kind:     "VolumeSnapshot",
+				Name:     volumeSnapshotName,
+			},
+			AccessModes: pvc.Spec.DeepCopy().AccessModes,
+			Resources:   pvc.DeepCopy().Spec.Resources,
+		},
 	}
 
-	pvcMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&pvc)
+	pvcMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&toRestore)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
