@@ -39,30 +39,28 @@ func (p *VSRestorer) AppliesTo() (velero.ResourceSelector, error) {
 }
 
 func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
-	p.log.Info("Starting VSRestorer")
+	p.log.Info("Starting VSRestorerAction")
 	var vs snapshotv1beta1api.VolumeSnapshot
 
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &vs); err != nil {
-		return &velero.RestoreItemActionExecuteOutput{}, err
+		return &velero.RestoreItemActionExecuteOutput{}, errors.Wrapf(err, "failed to convert input.Item from unstructured")
 	}
 
-	p.log.Infof("VSRestorer for %s/%s", vs.Namespace, vs.Name)
-
-	if vs.Status != nil {
-		p.log.Infof("BoundVolumeSnapshotContentName is %s", vs.Status.BoundVolumeSnapshotContentName)
-	} else {
-		p.log.Infof("vs status is nil")
+	var vsFromBackup snapshotv1beta1api.VolumeSnapshot
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured((input.ItemFromBackup.UnstructuredContent()), &vsFromBackup); err != nil {
+		return &velero.RestoreItemActionExecuteOutput{}, errors.Wrapf(err, "failed to convert input.ItemFromBackup from unstructured")
 	}
 
-	vscName := *vs.Status.BoundVolumeSnapshotContentName
+	if vsFromBackup.Status == nil || vsFromBackup.Status.BoundVolumeSnapshotContentName == nil {
+		return &velero.RestoreItemActionExecuteOutput{}, errors.Errorf("unable to lookup BoundVolumeSnapshotContentName from status")
+	}
+
+	vscName := *vsFromBackup.Status.BoundVolumeSnapshotContentName
 	vs.Spec = snapshotv1beta1api.VolumeSnapshotSpec{
 		Source: snapshotv1beta1api.VolumeSnapshotSource{
 			VolumeSnapshotContentName: &vscName,
 		},
 	}
-
-	vs.Status = nil
-	p.log.Infof("vs: %v", vs)
 
 	vsMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vs)
 	if err != nil {
@@ -70,7 +68,7 @@ func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vele
 		return nil, errors.WithStack(err)
 	}
 
-	p.log.Info("Returning from VSRestorer")
+	p.log.Info("Returning from VSRestorerAction")
 
 	return &velero.RestoreItemActionExecuteOutput{
 		UpdatedItem: &unstructured.Unstructured{Object: vsMap},

@@ -40,18 +40,23 @@ func (p *VSCRestorer) AppliesTo() (velero.ResourceSelector, error) {
 }
 
 func (p *VSCRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
-	p.log.Info("Starting VSCRestorer")
+	p.log.Info("Executing VSCRestorerAction")
 	var vsc snapshotv1beta1api.VolumeSnapshotContent
 
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &vsc); err != nil {
-		return &velero.RestoreItemActionExecuteOutput{}, err
+		return &velero.RestoreItemActionExecuteOutput{}, errors.Wrapf(err, "failed to convert input.Item from unstructured")
 	}
 
-	p.log.Infof("unstructured content: ")
-	for k, v := range input.Item.UnstructuredContent() {
-		p.log.Infof("%s: %s", k, v)
+	var vscFromBackup snapshotv1beta1api.VolumeSnapshotContent
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured((input.ItemFromBackup.UnstructuredContent()), &vscFromBackup); err != nil {
+		return &velero.RestoreItemActionExecuteOutput{}, errors.Wrapf(err, "failed to convert input.ItemFromBackup from unstructured")
 	}
-	vscSnapshotHandle := *vsc.Status.SnapshotHandle
+
+	if vscFromBackup.Status == nil || vscFromBackup.Status.SnapshotHandle == nil {
+		return &velero.RestoreItemActionExecuteOutput{}, errors.Errorf("unable to lookup snapshotHandle from status")
+	}
+
+	vscSnapshotHandle := *vscFromBackup.Status.SnapshotHandle
 	vscSnapshotClass := *vsc.Spec.VolumeSnapshotClassName
 	vsc.Spec = snapshotv1beta1api.VolumeSnapshotContentSpec{
 		DeletionPolicy: snapshotv1beta1api.VolumeSnapshotContentRetain,
@@ -68,57 +73,12 @@ func (p *VSCRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vel
 		},
 	}
 
-	vsc.Status = nil
-
-	/*toRestore := &snapshotv1beta1api.VolumeSnapshotContent{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: vsc.Name,
-		},
-		Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{
-			DeletionPolicy: snapshotv1beta1api.VolumeSnapshotContentRetain,
-			Driver:         vsc.Spec.Driver,
-			Source: snapshotv1beta1api.VolumeSnapshotContentSource{
-				SnapshotHandle: &vscSnapshotHandle,
-			},
-			VolumeSnapshotClassName: &vscSnapshotClass,
-			VolumeSnapshotRef: core_v1.ObjectReference{
-				APIVersion: vsc.Spec.VolumeSnapshotRef.APIVersion,
-				Kind:       vsc.Spec.VolumeSnapshotRef.Kind,
-				Name:       vsc.Spec.VolumeSnapshotRef.Name,
-				Namespace:  vsc.Spec.VolumeSnapshotRef.Namespace,
-			},
-		},
-	}*/
-
 	vscMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vsc)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	p.log.Info("vsc Spec")
-	p.log.Infof("name: %s", vsc.Name)
-	p.log.Infof("DeletionPolicy: %s", vsc.Spec.DeletionPolicy)
-	p.log.Infof("Driver: %s", vsc.Spec.Driver)
-	if vsc.Spec.Source.VolumeHandle != nil {
-		p.log.Infof("toRestore Source volume handle: %s", *vsc.Spec.Source.VolumeHandle)
-	}
-	if vsc.Spec.Source.SnapshotHandle != nil {
-		p.log.Infof("vsc Source snapshot handle: %s", *vsc.Spec.Source.SnapshotHandle)
-	}
-	p.log.Infof("VolumeSnapshotClassName: %s", *vsc.Spec.VolumeSnapshotClassName)
-	p.log.Infof("APIVersion: %s, Kind: %s, Name: %s, Namespace: %s",
-		vsc.Spec.VolumeSnapshotRef.APIVersion, vsc.Spec.VolumeSnapshotRef.Kind, vsc.Spec.VolumeSnapshotRef.Name,
-		vsc.Spec.VolumeSnapshotRef.Namespace)
-	if vsc.Status == nil {
-		p.log.Info("vsc.Status is nil")
-	}
-
-	p.log.Infof("vscMap")
-	for k, v := range vscMap {
-		p.log.Infof("%s: %v", k, v)
-	}
-
-	p.log.Info("Returning from VSCRestorer")
+	p.log.Info("Returning from VSCRestorerAction")
 
 	return &velero.RestoreItemActionExecuteOutput{
 		UpdatedItem: &unstructured.Unstructured{Object: vscMap},
