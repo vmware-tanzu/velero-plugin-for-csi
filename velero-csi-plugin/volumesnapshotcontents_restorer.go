@@ -22,7 +22,6 @@ import (
 
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	core_v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -48,11 +47,30 @@ func (p *VSCRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vel
 		return &velero.RestoreItemActionExecuteOutput{}, err
 	}
 
-	p.log.Infof("VSCRestorer for VSC: %s", vsc.Name)
-
+	p.log.Infof("unstructured content: ")
+	for k, v := range input.Item.UnstructuredContent() {
+		p.log.Infof("%s: %s", k, v)
+	}
 	vscSnapshotHandle := *vsc.Status.SnapshotHandle
 	vscSnapshotClass := *vsc.Spec.VolumeSnapshotClassName
-	toRestore := snapshotv1beta1api.VolumeSnapshotContent{
+	vsc.Spec = snapshotv1beta1api.VolumeSnapshotContentSpec{
+		DeletionPolicy: snapshotv1beta1api.VolumeSnapshotContentRetain,
+		Driver:         vsc.Spec.Driver,
+		Source: snapshotv1beta1api.VolumeSnapshotContentSource{
+			SnapshotHandle: &vscSnapshotHandle,
+		},
+		VolumeSnapshotClassName: &vscSnapshotClass,
+		VolumeSnapshotRef: core_v1.ObjectReference{
+			APIVersion: vsc.Spec.VolumeSnapshotRef.APIVersion,
+			Kind:       vsc.Spec.VolumeSnapshotRef.Kind,
+			Name:       vsc.Spec.VolumeSnapshotRef.Name,
+			Namespace:  vsc.Spec.VolumeSnapshotRef.Namespace,
+		},
+	}
+
+	vsc.Status = nil
+
+	/*toRestore := &snapshotv1beta1api.VolumeSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: vsc.Name,
 		},
@@ -70,15 +88,35 @@ func (p *VSCRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vel
 				Namespace:  vsc.Spec.VolumeSnapshotRef.Namespace,
 			},
 		},
-	}
+	}*/
 
-	vscMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&toRestore)
+	vscMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vsc)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	p.log.Infof("toRestore Source volume handle: %s, Source: snapshothandle: %s ", *toRestore.Spec.Source.VolumeHandle, *toRestore.Spec.Source.SnapshotHandle)
-	p.log.Infof("toRestore Status snapshot handle: %s", *toRestore.Status.SnapshotHandle)
+	p.log.Info("vsc Spec")
+	p.log.Infof("name: %s", vsc.Name)
+	p.log.Infof("DeletionPolicy: %s", vsc.Spec.DeletionPolicy)
+	p.log.Infof("Driver: %s", vsc.Spec.Driver)
+	if vsc.Spec.Source.VolumeHandle != nil {
+		p.log.Infof("toRestore Source volume handle: %s", *vsc.Spec.Source.VolumeHandle)
+	}
+	if vsc.Spec.Source.SnapshotHandle != nil {
+		p.log.Infof("vsc Source snapshot handle: %s", *vsc.Spec.Source.SnapshotHandle)
+	}
+	p.log.Infof("VolumeSnapshotClassName: %s", *vsc.Spec.VolumeSnapshotClassName)
+	p.log.Infof("APIVersion: %s, Kind: %s, Name: %s, Namespace: %s",
+		vsc.Spec.VolumeSnapshotRef.APIVersion, vsc.Spec.VolumeSnapshotRef.Kind, vsc.Spec.VolumeSnapshotRef.Name,
+		vsc.Spec.VolumeSnapshotRef.Namespace)
+	if vsc.Status == nil {
+		p.log.Info("vsc.Status is nil")
+	}
+
+	p.log.Infof("vscMap")
+	for k, v := range vscMap {
+		p.log.Infof("%s: %v", k, v)
+	}
 
 	p.log.Info("Returning from VSCRestorer")
 
