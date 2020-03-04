@@ -21,7 +21,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -49,22 +48,25 @@ func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vele
 
 	p.log.Infof("VSRestorer for %s/%s", vs.Namespace, vs.Name)
 
+	if vs.Status != nil {
+		p.log.Infof("BoundVolumeSnapshotContentName is %s", vs.Status.BoundVolumeSnapshotContentName)
+	} else {
+		p.log.Infof("vs status is nil")
+	}
+
 	vscName := *vs.Status.BoundVolumeSnapshotContentName
-	toRestore := snapshotv1beta1api.VolumeSnapshot{
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: vs.GenerateName,
-			Name:         vs.Name,
-			Namespace:    vs.Namespace,
-		},
-		Spec: snapshotv1beta1api.VolumeSnapshotSpec{
-			Source: snapshotv1beta1api.VolumeSnapshotSource{
-				VolumeSnapshotContentName: &vscName,
-			},
+	vs.Spec = snapshotv1beta1api.VolumeSnapshotSpec{
+		Source: snapshotv1beta1api.VolumeSnapshotSource{
+			VolumeSnapshotContentName: &vscName,
 		},
 	}
 
-	vsMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&toRestore)
+	vs.Status = nil
+	p.log.Infof("vs: %v", vs)
+
+	vsMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vs)
 	if err != nil {
+		p.log.Errorf("failed to convert vs into a map, %v", errors.WithStack(err))
 		return nil, errors.WithStack(err)
 	}
 
