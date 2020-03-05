@@ -24,7 +24,6 @@ import (
 	core_v1 "k8s.io/api/core/v1"
 	corev1api "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -67,26 +66,35 @@ func (p *CSIRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vel
 		return nil, errors.Errorf("Could not find volume snapshot name on PVC")
 	}
 
-	sc := *pvc.Spec.StorageClassName
-	toRestore := corev1api.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      pvc.Name,
-			Namespace: pvc.Namespace,
-		},
-		Spec: corev1api.PersistentVolumeClaimSpec{
-			StorageClassName: &sc,
-			DataSource: &core_v1.TypedLocalObjectReference{
-				APIGroup: &snapshotv1beta1api.SchemeGroupVersion.Group,
-				Kind:     "VolumeSnapshot",
-				Name:     volumeSnapshotName,
-			},
-			AccessModes: pvc.Spec.DeepCopy().AccessModes,
-			Resources:   pvc.DeepCopy().Spec.Resources,
-		},
+	for k := range annotations {
+		switch k {
+		case "velero.io/backup-name", "velero.io/volume-snapshot-name":
+			// keep these annotations
+		default:
+			// remove annotations like  pv.kubernetes.io/...
+			delete(annotations, k)
+		}
 	}
 
-	pvcMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&toRestore)
+	pvc.SetAnnotations(annotations)
+	sc := *pvc.Spec.StorageClassName
+	accessModes := pvc.Spec.AccessModes
+	resources := pvc.Spec.Resources
+
+	pvc.Spec = corev1api.PersistentVolumeClaimSpec{
+		StorageClassName: &sc,
+		DataSource: &core_v1.TypedLocalObjectReference{
+			APIGroup: &snapshotv1beta1api.SchemeGroupVersion.Group,
+			Kind:     "VolumeSnapshot",
+			Name:     volumeSnapshotName,
+		},
+		AccessModes: accessModes,
+		Resources:   resources,
+	}
+
+	pvcMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&pvc)
 	if err != nil {
+		p.log.Errorf("failed to convert pvc into a map, %v", errors.WithStack(err))
 		return nil, errors.WithStack(err)
 	}
 
