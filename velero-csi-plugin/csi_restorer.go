@@ -21,12 +21,11 @@ import (
 	"github.com/sirupsen/logrus"
 
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
-	core_v1 "k8s.io/api/core/v1"
 	corev1api "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 )
 
@@ -35,41 +34,41 @@ type CSIRestorer struct {
 	log logrus.FieldLogger
 }
 
-// AppliesTo returns information about which resources this action should be invoked for.
-// A RestoreItemAction's Execute function will only be invoked on items that match the returned
-// selector. A zero-valued ResourceSelector matches all resources.g
+// AppliesTo returns information about which resources the CSIRestorer action should be invoked for.
+// CSIRestorer RestoreItemAction plugin's Execute function will only be invoked on items that match the returned
+// selector. A zero-valued ResourceSelector matches all resources.
 func (p *CSIRestorer) AppliesTo() (velero.ResourceSelector, error) {
 	return velero.ResourceSelector{
 		IncludedResources: []string{"persistentvolumeclaims"},
+		//TODO: add label selector volumeSnapshotLabel
 	}, nil
 }
 
 // Execute allows the RestorePlugin to perform arbitrary logic with the item being restored,
-// in this case, setting a custom annotation on the item being restored.
+// in this case, logic to correctly restore a PVCs that uses CSI backed PVs which inturn can be restored using
+// the CSI VolumeSnapshot APIs
 func (p *CSIRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
-	p.log.Infof("Starting CSIRestorerAction for PVC")
 	var pvc corev1api.PersistentVolumeClaim
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &pvc); err != nil {
 		return nil, errors.WithStack(err)
 	}
-	metadata, err := meta.Accessor(input.Item)
-	if err != nil {
-		return &velero.RestoreItemActionExecuteOutput{}, err
-	}
+	p.log.Infof("Starting CSIRestorerAction for PVC %s/%s", pvc.Namespace, pvc.Name)
 
-	annotations := metadata.GetAnnotations()
+	annotations := pvc.GetAnnotations()
 	if annotations == nil {
 		annotations = make(map[string]string)
 	}
-
-	volumeSnapshotName, ok := annotations["velero.io/volume-snapshot-name"]
+	volumeSnapshotName, ok := annotations[volumeSnapshotLabel]
 	if !ok {
-		return nil, errors.Errorf("Could not find volume snapshot name on PVC")
+		p.log.Infof("Skipping CSIRestorerAction for PVC %s/%s, PVC does not have a CSI volumesnapshot.", pvc.Namespace, pvc.Name)
+		return &velero.RestoreItemActionExecuteOutput{
+			UpdatedItem: input.Item,
+		}, nil
 	}
 
 	for k := range annotations {
 		switch k {
-		case "velero.io/backup-name", "velero.io/volume-snapshot-name":
+		case velerov1api.BackupNameLabel, volumeSnapshotLabel:
 			// keep these annotations
 		default:
 			// remove annotations like  pv.kubernetes.io/...
@@ -82,9 +81,12 @@ func (p *CSIRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vel
 	accessModes := pvc.Spec.AccessModes
 	resources := pvc.Spec.Resources
 
+	// Restore operation for the PVC will use the volumesnapshot as the data source.
+	// Reinstantiating the Spec to discard data, from the previous spec, to avoid
+	// trigerring wrong controllers that can cause undesirable behavior.
 	pvc.Spec = corev1api.PersistentVolumeClaimSpec{
 		StorageClassName: &sc,
-		DataSource: &core_v1.TypedLocalObjectReference{
+		DataSource: &corev1api.TypedLocalObjectReference{
 			APIGroup: &snapshotv1beta1api.SchemeGroupVersion.Group,
 			Kind:     "VolumeSnapshot",
 			Name:     volumeSnapshotName,
@@ -95,10 +97,9 @@ func (p *CSIRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vel
 
 	pvcMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&pvc)
 	if err != nil {
-		p.log.Errorf("failed to convert pvc into a map, %v", errors.WithStack(err))
 		return nil, errors.WithStack(err)
 	}
-	p.log.Infof("Returning from CSIRestorerAction for PVC")
+	p.log.Infof("Returning from CSIRestorerAction for PVC %s/%s", pvc.Namespace, pvc.Name)
 
 	return &velero.RestoreItemActionExecuteOutput{
 		UpdatedItem: &unstructured.Unstructured{Object: pvcMap},

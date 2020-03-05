@@ -21,7 +21,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
-	core_v1 "k8s.io/api/core/v1"
+	corev1api "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -33,14 +33,19 @@ type VSCRestorer struct {
 	log logrus.FieldLogger
 }
 
+// AppliesTo returns information about which resources the VSCRestorer action should be invoked for.
+// VSCRestorer RestoreItemAction plugin's Execute function will only be invoked on items that match the returned
+// selector. A zero-valued ResourceSelector matches all resources.
 func (p *VSCRestorer) AppliesTo() (velero.ResourceSelector, error) {
 	return velero.ResourceSelector{
 		IncludedResources: []string{"volumesnapshotcontent.snapshot.storage.k8s.io"},
 	}, nil
 }
 
+// Execute allows the RestorePlugin to perform arbitrary logic with the item being restored,
+// in this case, logic to correctly restore a CSI volumesnapshotcontent custom resource that represents a snapshot of a CSI backed volume.
 func (p *VSCRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
-	p.log.Info("Executing VSCRestorerAction")
+	p.log.Info("Starting VSCRestorerAction")
 	var vsc snapshotv1beta1api.VolumeSnapshotContent
 
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &vsc); err != nil {
@@ -58,6 +63,9 @@ func (p *VSCRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vel
 
 	vscSnapshotHandle := *vscFromBackup.Status.SnapshotHandle
 	vscSnapshotClass := *vsc.Spec.VolumeSnapshotClassName
+	// Spec of the backed-up object used the VolumeHandle as the source of the volumeSnapshotcontent.
+	// Restore operation will however, restore the volumesnapshotcontent using the snapshotHandle as the source.
+	// Reinstantiating the Spec to discard data, from the previous spec, which may lead to undesirable behavior.
 	vsc.Spec = snapshotv1beta1api.VolumeSnapshotContentSpec{
 		DeletionPolicy: snapshotv1beta1api.VolumeSnapshotContentRetain,
 		Driver:         vsc.Spec.Driver,
@@ -65,7 +73,7 @@ func (p *VSCRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vel
 			SnapshotHandle: &vscSnapshotHandle,
 		},
 		VolumeSnapshotClassName: &vscSnapshotClass,
-		VolumeSnapshotRef: core_v1.ObjectReference{
+		VolumeSnapshotRef: corev1api.ObjectReference{
 			APIVersion: vsc.Spec.VolumeSnapshotRef.APIVersion,
 			Kind:       vsc.Spec.VolumeSnapshotRef.Kind,
 			Name:       vsc.Spec.VolumeSnapshotRef.Name,

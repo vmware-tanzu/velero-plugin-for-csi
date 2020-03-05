@@ -32,12 +32,17 @@ type VSRestorer struct {
 	log logrus.FieldLogger
 }
 
+// AppliesTo returns information about which resources the VSRestorer action should be invoked for.
+// VSRestorer RestoreItemAction plugin's Execute function will only be invoked on items that match the returned
+// selector. A zero-valued ResourceSelector matches all resources.
 func (p *VSRestorer) AppliesTo() (velero.ResourceSelector, error) {
 	return velero.ResourceSelector{
 		IncludedResources: []string{"volumesnapshots.snapshot.storage.k8s.io"},
 	}, nil
 }
 
+// Execute allows the RestorePlugin to perform arbitrary logic with the item being restored,
+// in this case, logic to correctly restore a CSI VolumeSnapshot custom resource that represents a snapshot of a CSI backed volume.
 func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
 	p.log.Info("Starting VSRestorerAction")
 	var vs snapshotv1beta1api.VolumeSnapshot
@@ -56,6 +61,9 @@ func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vele
 	}
 
 	vscName := *vsFromBackup.Status.BoundVolumeSnapshotContentName
+	// Spec of the backed-up object used the PVC as the source of the volumeSnapshot.
+	// Restore operation will however, restore the volumesnapshot from the volumesnapshotcontent
+	// Reinstantiating the Spec to discard data, from the previous spec, and avoid undesirable behavior.
 	vs.Spec = snapshotv1beta1api.VolumeSnapshotSpec{
 		Source: snapshotv1beta1api.VolumeSnapshotSource{
 			VolumeSnapshotContentName: &vscName,
@@ -64,7 +72,6 @@ func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vele
 
 	vsMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vs)
 	if err != nil {
-		p.log.Errorf("failed to convert vs into a map, %v", errors.WithStack(err))
 		return nil, errors.WithStack(err)
 	}
 

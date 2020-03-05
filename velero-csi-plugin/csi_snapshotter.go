@@ -38,30 +38,27 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
 
-const (
-	veleroSnapshotNameAnnotation = "velero.io/volume-snapshot-name"
-)
-
 // CSISnapshotter is a backup item action plugin for Velero.
 type CSISnapshotter struct {
 	log logrus.FieldLogger
 }
 
-// AppliesTo returns information about which resources this action should be invoked for.
-// A BackupPlugin's Execute function will only be invoked on items that match the returned
+// AppliesTo returns information about which resources the CSISnapshotter action should be invoked for.
+// CSISnapshotter BackupItemAction plugin's Execute function will only be invoked on items that match the returned
 // selector. A zero-valued ResourceSelector matches all resources.
 func (p *CSISnapshotter) AppliesTo() (velero.ResourceSelector, error) {
-	p.log.Info("CSISnapshotter AppliesTo")
+	p.log.Info("CSISnapshotterAction AppliesTo")
 
 	return velero.ResourceSelector{
 		IncludedResources: []string{"persistentvolumeclaims"},
 	}, nil
 }
 
-// Execute allows the ItemAction to perform arbitrary logic with the item being backed up,
-// in this case, setting a custom annotation on the item being backed up.
+// Execute allows the RestorePlugin to perform arbitrary logic with the item being restored,
+// in this case, logic to backup PVCs whose underlying PVs are provisioned by a CSI driver that has the ability to perform CSI volumesnapshots.
+// This logic process will backup, along with the PVC, the volumesnapshot and volumesnpshotcontents custom resources of the CSI snapsthot APIs.
 func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
-	p.log.Info("CSISnapshotter Execute")
+	p.log.Info("Starting CSISnapshotterAction")
 
 	// Do nothing if volume snapshots have not been requested in this backup
 	if boolptr.IsSetToFalse(backup.Spec.SnapshotVolumes) {
@@ -89,6 +86,8 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.
 		p.log.Infof("Skipping PVC %s/%s, associated PV %s is not a CSI volume", pvc.Namespace, pvc.Name, pv.Name)
 		return item, nil, nil
 	}
+
+	// TODO: confirm that the CSI driver has Snapshoting capability
 
 	// Do nothing if restic is used to backup this PV
 	isResticUsed, err := isPVCBackedUpByRestic(pvc.Namespace, pvc.Name, client.CoreV1())
@@ -149,9 +148,16 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.
 	if annotations == nil {
 		annotations = make(map[string]string)
 	}
-	annotations[veleroSnapshotNameAnnotation] = upd.Name
+	annotations[volumeSnapshotLabel] = upd.Name
 	annotations[velerov1api.BackupNameLabel] = backup.Name
 	accessor.SetAnnotations(annotations)
+
+	labels := accessor.GetLabels()
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels[volumeSnapshotLabel] = upd.Name
+	accessor.SetLabels(labels)
 
 	p.log.Info("Fetching volumesnapshotcontent for volumesnapshot")
 	snapshotContent, err := getVolumeSnapshotContentForVolumeSnapshot(upd, snapshotClient.SnapshotV1beta1(), p.log)
