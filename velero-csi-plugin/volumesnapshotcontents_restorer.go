@@ -21,7 +21,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
-	corev1api "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -40,6 +39,16 @@ func (p *VSCRestorer) AppliesTo() (velero.ResourceSelector, error) {
 	return velero.ResourceSelector{
 		IncludedResources: []string{"volumesnapshotcontent.snapshot.storage.k8s.io"},
 	}, nil
+}
+
+func resetVSCSpecForRestore(vsc *snapshotv1beta1api.VolumeSnapshotContent, snapshotHandle *string) {
+	// Spec of the backed-up object used the VolumeHandle as the source of the volumeSnapshotcontent.
+	// Restore operation will however, restore the volumesnapshotcontent using the snapshotHandle as the source.
+	vsc.Spec.DeletionPolicy = snapshotv1beta1api.VolumeSnapshotContentRetain
+	vsc.Spec.Source.VolumeHandle = nil
+	vsc.Spec.Source.SnapshotHandle = snapshotHandle
+	vsc.Spec.VolumeSnapshotRef.UID = ""
+	vsc.Spec.VolumeSnapshotRef.ResourceVersion = ""
 }
 
 // Execute allows the RestorePlugin to perform arbitrary logic with the item being restored,
@@ -61,25 +70,7 @@ func (p *VSCRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vel
 		return &velero.RestoreItemActionExecuteOutput{}, errors.Errorf("unable to lookup snapshotHandle from status")
 	}
 
-	vscSnapshotHandle := *vscFromBackup.Status.SnapshotHandle
-	vscSnapshotClass := *vsc.Spec.VolumeSnapshotClassName
-	// Spec of the backed-up object used the VolumeHandle as the source of the volumeSnapshotcontent.
-	// Restore operation will however, restore the volumesnapshotcontent using the snapshotHandle as the source.
-	// Reinstantiating the Spec to discard data, from the previous spec, which may lead to undesirable behavior.
-	vsc.Spec = snapshotv1beta1api.VolumeSnapshotContentSpec{
-		DeletionPolicy: snapshotv1beta1api.VolumeSnapshotContentRetain,
-		Driver:         vsc.Spec.Driver,
-		Source: snapshotv1beta1api.VolumeSnapshotContentSource{
-			SnapshotHandle: &vscSnapshotHandle,
-		},
-		VolumeSnapshotClassName: &vscSnapshotClass,
-		VolumeSnapshotRef: corev1api.ObjectReference{
-			APIVersion: vsc.Spec.VolumeSnapshotRef.APIVersion,
-			Kind:       vsc.Spec.VolumeSnapshotRef.Kind,
-			Name:       vsc.Spec.VolumeSnapshotRef.Name,
-			Namespace:  vsc.Spec.VolumeSnapshotRef.Namespace,
-		},
-	}
+	resetVSCSpecForRestore(&vsc, vscFromBackup.Status.SnapshotHandle)
 
 	vscMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vsc)
 	if err != nil {

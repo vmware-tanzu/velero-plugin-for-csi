@@ -87,8 +87,6 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.
 		return item, nil, nil
 	}
 
-	// TODO: confirm that the CSI driver has Snapshoting capability
-
 	// Do nothing if restic is used to backup this PV
 	isResticUsed, err := isPVCBackedUpByRestic(pvc.Namespace, pvc.Name, client.CoreV1())
 	if err != nil {

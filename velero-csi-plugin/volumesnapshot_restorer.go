@@ -41,6 +41,13 @@ func (p *VSRestorer) AppliesTo() (velero.ResourceSelector, error) {
 	}, nil
 }
 
+func resetVolumeSnapshotSpecForRestore(vs *snapshotv1beta1api.VolumeSnapshot, vscName *string) {
+	// Spec of the backed-up object used the PVC as the source of the volumeSnapshot.
+	// Restore operation will however, restore the volumesnapshot from the volumesnapshotcontent
+	vs.Spec.Source.PersistentVolumeClaimName = nil
+	vs.Spec.Source.VolumeSnapshotContentName = vscName
+}
+
 // Execute allows the RestorePlugin to perform arbitrary logic with the item being restored,
 // in this case, logic to correctly restore a CSI VolumeSnapshot custom resource that represents a snapshot of a CSI backed volume.
 func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
@@ -60,15 +67,7 @@ func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vele
 		return &velero.RestoreItemActionExecuteOutput{}, errors.Errorf("unable to lookup BoundVolumeSnapshotContentName from status")
 	}
 
-	vscName := *vsFromBackup.Status.BoundVolumeSnapshotContentName
-	// Spec of the backed-up object used the PVC as the source of the volumeSnapshot.
-	// Restore operation will however, restore the volumesnapshot from the volumesnapshotcontent
-	// Reinstantiating the Spec to discard data, from the previous spec, and avoid undesirable behavior.
-	vs.Spec = snapshotv1beta1api.VolumeSnapshotSpec{
-		Source: snapshotv1beta1api.VolumeSnapshotSource{
-			VolumeSnapshotContentName: &vscName,
-		},
-	}
+	resetVolumeSnapshotSpecForRestore(&vs, vsFromBackup.Status.BoundVolumeSnapshotContentName)
 
 	vsMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vs)
 	if err != nil {

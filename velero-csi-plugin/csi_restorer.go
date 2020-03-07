@@ -44,6 +44,29 @@ func (p *CSIRestorer) AppliesTo() (velero.ResourceSelector, error) {
 	}, nil
 }
 
+func resetPVCAnnotations(pvc *corev1api.PersistentVolumeClaim, preserve []string) {
+	if pvc.Annotations == nil {
+		pvc.Annotations = make(map[string]string)
+		return
+	}
+	for k := range pvc.Annotations {
+		if !contains(preserve, k) {
+			delete(pvc.Annotations, k)
+		}
+	}
+}
+
+func resetPVCSpec(pvc *corev1api.PersistentVolumeClaim, vsName string) {
+	// Restore operation for the PVC will use the volumesnapshot as the data source.
+	// So clear out the volume name, which is a ref to the PV
+	pvc.Spec.VolumeName = ""
+	pvc.Spec.DataSource = &corev1api.TypedLocalObjectReference{
+		APIGroup: &snapshotv1beta1api.SchemeGroupVersion.Group,
+		Kind:     "VolumeSnapshot",
+		Name:     vsName,
+	}
+}
+
 // Execute allows the RestorePlugin to perform arbitrary logic with the item being restored,
 // in this case, logic to correctly restore a PVCs that uses CSI backed PVs which inturn can be restored using
 // the CSI VolumeSnapshot APIs
@@ -54,46 +77,16 @@ func (p *CSIRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vel
 	}
 	p.log.Infof("Starting CSIRestorerAction for PVC %s/%s", pvc.Namespace, pvc.Name)
 
-	annotations := pvc.GetAnnotations()
-	if annotations == nil {
-		annotations = make(map[string]string)
-	}
-	volumeSnapshotName, ok := annotations[volumeSnapshotLabel]
+	resetPVCAnnotations(&pvc, []string{velerov1api.BackupNameLabel, volumeSnapshotLabel})
+
+	volumeSnapshotName, ok := pvc.Annotations[volumeSnapshotLabel]
 	if !ok {
 		p.log.Infof("Skipping CSIRestorerAction for PVC %s/%s, PVC does not have a CSI volumesnapshot.", pvc.Namespace, pvc.Name)
 		return &velero.RestoreItemActionExecuteOutput{
 			UpdatedItem: input.Item,
 		}, nil
 	}
-
-	for k := range annotations {
-		switch k {
-		case velerov1api.BackupNameLabel, volumeSnapshotLabel:
-			// keep these annotations
-		default:
-			// remove annotations like  pv.kubernetes.io/...
-			delete(annotations, k)
-		}
-	}
-
-	pvc.SetAnnotations(annotations)
-	sc := *pvc.Spec.StorageClassName
-	accessModes := pvc.Spec.AccessModes
-	resources := pvc.Spec.Resources
-
-	// Restore operation for the PVC will use the volumesnapshot as the data source.
-	// Reinstantiating the Spec to discard data, from the previous spec, to avoid
-	// trigerring wrong controllers that can cause undesirable behavior.
-	pvc.Spec = corev1api.PersistentVolumeClaimSpec{
-		StorageClassName: &sc,
-		DataSource: &corev1api.TypedLocalObjectReference{
-			APIGroup: &snapshotv1beta1api.SchemeGroupVersion.Group,
-			Kind:     "VolumeSnapshot",
-			Name:     volumeSnapshotName,
-		},
-		AccessModes: accessModes,
-		Resources:   resources,
-	}
+	resetPVCSpec(&pvc, volumeSnapshotName)
 
 	pvcMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&pvc)
 	if err != nil {
