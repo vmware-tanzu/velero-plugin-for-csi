@@ -34,9 +34,7 @@ type CSIRestorer struct {
 	log logrus.FieldLogger
 }
 
-// AppliesTo returns information about which resources the CSIRestorer action should be invoked for.
-// CSIRestorer RestoreItemAction plugin's Execute function will only be invoked on items that match the returned
-// selector. A zero-valued ResourceSelector matches all resources.
+// AppliesTo returns information indicating that the CSIRestorer action should be run while restoring PVCs.
 func (p *CSIRestorer) AppliesTo() (velero.ResourceSelector, error) {
 	return velero.ResourceSelector{
 		IncludedResources: []string{"persistentvolumeclaims"},
@@ -67,9 +65,8 @@ func resetPVCSpec(pvc *corev1api.PersistentVolumeClaim, vsName string) {
 	}
 }
 
-// Execute allows the RestorePlugin to perform arbitrary logic with the item being restored,
-// in this case, logic to correctly restore a PVCs that uses CSI backed PVs which inturn can be restored using
-// the CSI VolumeSnapshot APIs
+// Execute modifies the PVC's spec to use the volumesnapshot object as the data source ensuring that the newly provisioned volume
+// can be pre-populated with data from the volumesnapshot.
 func (p *CSIRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
 	var pvc corev1api.PersistentVolumeClaim
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &pvc); err != nil {

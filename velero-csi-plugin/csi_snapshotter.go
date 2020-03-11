@@ -43,9 +43,7 @@ type CSISnapshotter struct {
 	log logrus.FieldLogger
 }
 
-// AppliesTo returns information about which resources the CSISnapshotter action should be invoked for.
-// CSISnapshotter BackupItemAction plugin's Execute function will only be invoked on items that match the returned
-// selector. A zero-valued ResourceSelector matches all resources.
+// AppliesTo returns information indicating that the CSISnapshotter action should be invoked to backup PVCs.
 func (p *CSISnapshotter) AppliesTo() (velero.ResourceSelector, error) {
 	p.log.Info("CSISnapshotterAction AppliesTo")
 
@@ -54,9 +52,8 @@ func (p *CSISnapshotter) AppliesTo() (velero.ResourceSelector, error) {
 	}, nil
 }
 
-// Execute allows the RestorePlugin to perform arbitrary logic with the item being restored,
-// in this case, logic to backup PVCs whose underlying PVs are provisioned by a CSI driver that has the ability to perform CSI volumesnapshots.
-// This logic process will backup, along with the PVC, the volumesnapshot and volumesnpshotcontents custom resources of the CSI snapsthot APIs.
+// Execute recognizes PVCs backed by volumes provisioned by CSI drivers with volumesnapshotting capability and creates snapshots of the
+// underlying PVs by creating volumesnapshot CSI API objects that will trigger the CSI driver to perform the snapshot operation on the volume.
 func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
 	p.log.Info("Starting CSISnapshotterAction")
 

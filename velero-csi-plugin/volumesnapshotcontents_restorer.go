@@ -32,9 +32,8 @@ type VSCRestorer struct {
 	log logrus.FieldLogger
 }
 
-// AppliesTo returns information about which resources the VSCRestorer action should be invoked for.
-// VSCRestorer RestoreItemAction plugin's Execute function will only be invoked on items that match the returned
-// selector. A zero-valued ResourceSelector matches all resources.
+// AppliesTo returns information indicating VSCRestorer action should be invoked while restoring
+// volumesnapshotcontent.snapshot.storage.k8s.io resources
 func (p *VSCRestorer) AppliesTo() (velero.ResourceSelector, error) {
 	return velero.ResourceSelector{
 		IncludedResources: []string{"volumesnapshotcontent.snapshot.storage.k8s.io"},
@@ -51,8 +50,9 @@ func resetVSCSpecForRestore(vsc *snapshotv1beta1api.VolumeSnapshotContent, snaps
 	vsc.Spec.VolumeSnapshotRef.ResourceVersion = ""
 }
 
-// Execute allows the RestorePlugin to perform arbitrary logic with the item being restored,
-// in this case, logic to correctly restore a CSI volumesnapshotcontent custom resource that represents a snapshot of a CSI backed volume.
+// Execute modifies the volumesnapshotcontent's spec to use the storage provider snapshot handle as its source
+// instead of the storage provider volume handle, as in the original spec, allowing the newly provisioned volume to be
+// pre-populated with data from the volume snapshot.
 func (p *VSCRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
 	p.log.Info("Starting VSCRestorerAction")
 	var vsc snapshotv1beta1api.VolumeSnapshotContent
