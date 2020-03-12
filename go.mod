@@ -15,7 +15,7 @@ require (
 	github.com/pkg/errors v0.8.1
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.5 // indirect
-	github.com/vmware-tanzu/velero v1.2.1-0.20200109194557-555e8ff2e35d
+	github.com/vmware-tanzu/velero v1.3.1
 	k8s.io/api v0.17.2
 	k8s.io/apimachinery v0.17.2
 	k8s.io/client-go v0.17.2
