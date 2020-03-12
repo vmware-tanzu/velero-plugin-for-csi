@@ -28,12 +28,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/tools/clientcmd"
 
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	"github.com/vmware-tanzu/velero/pkg/kuberesource"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
@@ -161,30 +161,19 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.
 
 	p.log.Infof("Volumesnapshotcontent for volumesnapshot %s is %s", fmt.Sprintf("%s/%s", upd.Namespace, upd.Name), snapshotContent.Name)
 
-	// TODO: Create GroupResource obejects for volumesnapshot objects
-	// https://github.com/vmware-tanzu/velero/pull/2288
 	additionalItems := []velero.ResourceIdentifier{
 		{
-			GroupResource: schema.GroupResource{
-				Group:    snapshotv1beta1api.GroupName,
-				Resource: "volumesnapshotclasses",
-			},
-			Name: snapshotClass.Name,
+			GroupResource: kuberesource.VolumeSnapshotClasses,
+			Name:          snapshotClass.Name,
 		},
 		{
-			GroupResource: schema.GroupResource{
-				Group:    snapshotv1beta1api.GroupName,
-				Resource: "volumesnapshots",
-			},
-			Namespace: upd.Namespace,
-			Name:      upd.Name,
+			GroupResource: kuberesource.VolumeSnapshots,
+			Namespace:     upd.Namespace,
+			Name:          upd.Name,
 		},
 		{
-			GroupResource: schema.GroupResource{
-				Group:    snapshotv1beta1api.GroupName,
-				Resource: "volumesnapshotcontents",
-			},
-			Name: snapshotContent.Name,
+			GroupResource: kuberesource.VolumeSnapshotContents,
+			Name:          snapshotContent.Name,
 		},
 	}
 
