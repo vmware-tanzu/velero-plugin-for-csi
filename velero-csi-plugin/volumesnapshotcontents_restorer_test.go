@@ -19,6 +19,8 @@ package main
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	corev1api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -96,55 +98,22 @@ func TestResetVSCSpecForRestore(t *testing.T) {
 			before := tc.vsc.DeepCopy()
 			resetVSCSpecForRestore(&tc.vsc, &tc.snapshotHandle)
 
-			if tc.vsc.Name != before.Name {
-				t.Errorf("%s failed, unexpected change to Object.Name, Want: %s; Got %s", tc.name, before.Name, tc.vsc.Name)
-			}
-
-			if tc.vsc.Spec.DeletionPolicy != snapshotv1beta1api.VolumeSnapshotContentRetain {
-				t.Errorf("%s failed, unexpected DeletionPolicy, Want: %s; Got: %s",
-					tc.name, snapshotv1beta1api.VolumeSnapshotContentRetain, tc.vsc.Spec.DeletionPolicy)
-			}
-
-			if tc.vsc.Spec.Source.VolumeHandle != nil {
-				t.Errorf("%s failed, unexpected value for Source.VolumeHandle, Want: nil; Got %s",
-					tc.name, *tc.vsc.Spec.Source.VolumeHandle)
-			}
-
-			if tc.vsc.Spec.Source.SnapshotHandle == nil || *tc.vsc.Spec.Source.SnapshotHandle != tc.snapshotHandle {
-				got := "nil"
-				if tc.vsc.Spec.Source.SnapshotHandle != nil {
-					got = *tc.vsc.Spec.Source.SnapshotHandle
-				}
-				t.Errorf("%s failed, unexpected value for Source.SnapshotHandle, Want: %s; Got %s",
-					tc.name, tc.snapshotHandle, got)
-			}
-
-			if tc.vsc.Spec.VolumeSnapshotRef.Name != before.Spec.VolumeSnapshotRef.Name {
-				t.Errorf("%s failed, unexpected value for VolumeSnapshotRef.Name, Want: %s; Got: %s",
-					tc.name, before.Spec.VolumeSnapshotRef.Name, tc.vsc.Spec.VolumeSnapshotRef.Name)
-			}
-			if tc.vsc.Spec.VolumeSnapshotRef.Namespace != before.Spec.VolumeSnapshotRef.Namespace {
-				t.Errorf("%s failed, unexpected value for VolumeSnapshotRef.Namespace, Want: %s; Got: %s",
-					tc.name, before.Spec.VolumeSnapshotRef.Namespace, tc.vsc.Spec.VolumeSnapshotRef.Namespace)
-			}
-			if tc.vsc.Spec.VolumeSnapshotRef.Kind != "VolumeSnapshot" {
-				t.Errorf("%s failed, unexpected value for VolumeSnapshotRef.Kind, Want: VolumeSnapshot; Got: %s",
-					tc.name, tc.vsc.Spec.VolumeSnapshotRef.Kind)
-			}
-
-			if tc.vsc.Spec.Driver != before.Spec.Driver {
-				t.Errorf("%s failed, unexpected value for Spec.Driver, Want: %s; Got %s",
-					tc.name, before.Spec.Driver, tc.vsc.Spec.Driver)
-			}
-
-			if *tc.vsc.Spec.VolumeSnapshotClassName != *before.Spec.VolumeSnapshotClassName {
-				t.Errorf("%s failed, unexpected value for Spec.VolumeSnapshotClassName, Want: %s; Got %s",
-					tc.name, *before.Spec.VolumeSnapshotClassName, *tc.vsc.Spec.VolumeSnapshotClassName)
-			}
-
-			if tc.vsc.Status != nil {
-				t.Errorf("%s failed, unexpected value for Status, Want: nil; Got: %v", tc.name, tc.vsc.Status)
-			}
+			assert.Equalf(t, tc.vsc.Name, before.Name, "unexpected change to Object.Name, Want: %s; Got %s", tc.name, before.Name, tc.vsc.Name)
+			assert.Equal(t, tc.vsc.Spec.DeletionPolicy, snapshotv1beta1api.VolumeSnapshotContentRetain)
+			assert.Nil(t, tc.vsc.Spec.Source.VolumeHandle)
+			assert.NotNil(t, tc.vsc.Spec.Source.SnapshotHandle)
+			assert.Equal(t, tc.snapshotHandle, *tc.vsc.Spec.Source.SnapshotHandle)
+			assert.Equal(t, tc.vsc.Spec.VolumeSnapshotRef.Name, before.Spec.VolumeSnapshotRef.Name, "unexpected value for VolumeSnapshotRef.Name, Want: %s; Got: %s",
+				tc.name, before.Spec.VolumeSnapshotRef.Name, tc.vsc.Spec.VolumeSnapshotRef.Name)
+			assert.Equal(t, tc.vsc.Spec.VolumeSnapshotRef.Namespace, before.Spec.VolumeSnapshotRef.Namespace, "unexpected value for VolumeSnapshotRef.Namespace, Want: %s; Got: %s",
+				tc.name, before.Spec.VolumeSnapshotRef.Namespace, tc.vsc.Spec.VolumeSnapshotRef.Namespace)
+			assert.Equal(t, tc.vsc.Spec.VolumeSnapshotRef.Kind, "VolumeSnapshot", "unexpected value for VolumeSnapshotRef.Kind, Want: VolumeSnapshot; Got: %s",
+				tc.name, tc.vsc.Spec.VolumeSnapshotRef.Kind)
+			assert.Equal(t, tc.vsc.Spec.Driver, before.Spec.Driver, "unexpected value for Spec.Driver, Want: %s; Got %s",
+				tc.name, before.Spec.Driver, tc.vsc.Spec.Driver)
+			assert.Equal(t, *tc.vsc.Spec.VolumeSnapshotClassName, *before.Spec.VolumeSnapshotClassName, "unexpected value for Spec.VolumeSnapshotClassName, Want: %s; Got %s",
+				tc.name, *before.Spec.VolumeSnapshotClassName, *tc.vsc.Spec.VolumeSnapshotClassName)
+			assert.Nil(t, tc.vsc.Status)
 		})
 
 	}

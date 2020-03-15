@@ -18,6 +18,8 @@ package main
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	corev1api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -62,58 +64,34 @@ func TestSetPVCAnnotationsAndLabels(t *testing.T) {
 		before := tc.pvc.DeepCopy()
 		setPVCAnnotationsAndLabels(&tc.pvc, tc.snapshotName, tc.backupName)
 
-		if tc.pvc.Annotations == nil {
-			t.Error("Want: non-nil annotation; Got: nil annotation")
-		}
-		if tc.pvc.Labels == nil {
-			t.Error("Want: non-nil labels; Got: nil labels")
-		}
+		assert.NotNil(t, tc.pvc.Annotations, "Want: non-nil annotation; Got: nil annotation")
+		assert.NotNil(t, tc.pvc.Labels, "Want: non-nil labels; Got: nil labels")
 
 		actualSnapshotNameAnnotation, exists := tc.pvc.Annotations[volumeSnapshotLabel]
-		if !exists {
-			t.Errorf("missing expected value for annotation %s, Want: %s", volumeSnapshotLabel, tc.snapshotName)
-		}
-		if actualSnapshotNameAnnotation != tc.snapshotName {
-			t.Errorf("unexpected value for annotation %s, Want: %s; Got: %s", volumeSnapshotLabel, tc.snapshotName, actualSnapshotNameAnnotation)
-		}
+		assert.Truef(t, exists, "missing expected value for annotation %s, Want: %s", volumeSnapshotLabel, tc.snapshotName)
+		assert.Equalf(t, actualSnapshotNameAnnotation, tc.snapshotName, "unexpected value for annotation %s, Want: %s; Got: %s", volumeSnapshotLabel, tc.snapshotName, actualSnapshotNameAnnotation)
 
 		actualBackupName, exists := tc.pvc.Annotations[velerov1api.BackupNameLabel]
-		if !exists {
-			t.Errorf("missing expected value for annotation %s, Want: %s", velerov1api.BackupNameLabel, tc.backupName)
-		}
-		if actualBackupName != tc.backupName {
-			t.Errorf("unexpected value for annotation %s, Want: %s; Got: %s", velerov1api.BackupNameLabel, tc.backupName, actualBackupName)
-		}
+		assert.Truef(t, exists, "missing expected value for annotation %s, Want: %s", velerov1api.BackupNameLabel, tc.backupName)
+		assert.Equalf(t, actualBackupName, tc.backupName, "unexpected value for annotation %s, Want: %s; Got: %s", velerov1api.BackupNameLabel, tc.backupName, actualBackupName)
 
 		if before.Annotations != nil {
 			for k, e := range before.Annotations {
 				a, o := tc.pvc.Annotations[k]
-				if !o {
-					t.Errorf("missing annotation, Want: %s as value for annotation %s", e, k)
-				}
-				if a != e {
-					t.Errorf("unexpected value for annotation %s, Want:%s; Got:%s", k, e, a)
-				}
+				assert.Truef(t, o, "missing annotation, Want: %s as value for annotation %s", e, k)
+				assert.Equalf(t, a, e, "unexpected value for annotation %s, Want:%s; Got:%s", k, e, a)
 			}
 		}
 
 		actualSnapshotNameLabel, exists := tc.pvc.Labels[volumeSnapshotLabel]
-		if !exists {
-			t.Errorf("missing expected value for label %s, Want: %s", volumeSnapshotLabel, tc.snapshotName)
-		}
-		if actualSnapshotNameLabel != tc.snapshotName {
-			t.Errorf("unexpected value for label %s, Want: %s; Got: %s", volumeSnapshotLabel, tc.snapshotName, actualSnapshotNameLabel)
-		}
+		assert.Truef(t, exists, "missing expected value for label %s, Want: %s", volumeSnapshotLabel, tc.snapshotName)
+		assert.Equalf(t, actualSnapshotNameLabel, tc.snapshotName, "unexpected value for label %s, Want: %s; Got: %s", volumeSnapshotLabel, tc.snapshotName, actualSnapshotNameLabel)
 
 		if before.Labels != nil {
 			for k, e := range before.Labels {
 				a, o := tc.pvc.Annotations[k]
-				if !o {
-					t.Errorf("missing label, Want: %s as value for annotation %s", e, k)
-				}
-				if a != e {
-					t.Errorf("unexpected value for label %s, Want:%s; Got:%s", k, e, a)
-				}
+				assert.Truef(t, o, "missing label, Want: %s as value for label %s", e, k)
+				assert.Equalf(t, a, e, "unexpected value for label %s, Want:%s; Got:%s", k, e, a)
 			}
 		}
 	}

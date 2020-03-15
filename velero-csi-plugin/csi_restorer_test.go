@@ -19,6 +19,8 @@ package main
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	corev1api "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,25 +28,23 @@ import (
 
 func TestResetPVCAnnotations(t *testing.T) {
 	testCases := []struct {
-		name                      string
-		pvc                       corev1api.PersistentVolumeClaim
-		preserveAnnotations       []string
-		expectedAnnotations       map[string]string
-		expectNonEmptyAnnotations bool
+		name                string
+		pvc                 corev1api.PersistentVolumeClaim
+		preserveAnnotations []string
+		expectedAnnotations map[string]string
 	}{
 		{
-			name:                      "should create empty annotation map",
-			expectNonEmptyAnnotations: true,
+			name: "should create empty annotation map",
 			pvc: corev1api.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: nil,
 				},
 			},
 			preserveAnnotations: []string{"foo"},
+			expectedAnnotations: map[string]string{},
 		},
 		{
-			name:                      "should preserve all existing annotations",
-			expectNonEmptyAnnotations: false,
+			name: "should preserve all existing annotations",
 			pvc: corev1api.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
@@ -56,10 +56,15 @@ func TestResetPVCAnnotations(t *testing.T) {
 				},
 			},
 			preserveAnnotations: []string{"ann1", "ann2", "ann3", "ann4"},
+			expectedAnnotations: map[string]string{
+				"ann1": "ann1-val",
+				"ann2": "ann2-val",
+				"ann3": "ann3-val",
+				"ann4": "ann4-val",
+			},
 		},
 		{
-			name:                      "should remove all existing annotations",
-			expectNonEmptyAnnotations: false,
+			name: "should remove all existing annotations",
 			pvc: corev1api.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
@@ -71,10 +76,10 @@ func TestResetPVCAnnotations(t *testing.T) {
 				},
 			},
 			preserveAnnotations: []string{},
+			expectedAnnotations: map[string]string{},
 		},
 		{
-			name:                      "should preserve some existing annotations",
-			expectNonEmptyAnnotations: false,
+			name: "should preserve some existing annotations",
 			pvc: corev1api.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
@@ -90,33 +95,19 @@ func TestResetPVCAnnotations(t *testing.T) {
 				},
 			},
 			preserveAnnotations: []string{"ann1", "ann2", "ann3", "ann4"},
+			expectedAnnotations: map[string]string{
+				"ann1": "ann1-val",
+				"ann2": "ann2-val",
+				"ann3": "ann3-val",
+				"ann4": "ann4-val",
+			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			resetPVCAnnotations(&tc.pvc, tc.preserveAnnotations)
-			if tc.pvc.Annotations == nil {
-				t.Errorf("%s failed, unexpected PVC annotations returned, Want: non-nil; Got: nil", tc.name)
-			}
-			if tc.expectNonEmptyAnnotations && len(tc.pvc.Annotations) != 0 {
-				t.Errorf("%s failed, unexpected count of PVC annotations returned, Want: 0; Got: %d", tc.name, len(tc.pvc.Annotations))
-			}
-
-			if tc.expectNonEmptyAnnotations {
-				return
-			}
-
-			if len(tc.preserveAnnotations) != len(tc.pvc.Annotations) {
-				t.Errorf("%s failed, unexpected count of pvc annotations returned, Want: %d, Got: %d",
-					tc.name, len(tc.preserveAnnotations), len(tc.pvc.Annotations))
-			}
-
-			for k := range tc.pvc.Annotations {
-				if !contains(tc.preserveAnnotations, k) {
-					t.Errorf("%s failed, annotation %s not required but preserved", tc.name, k)
-				}
-			}
+			assert.Equal(t, tc.expectedAnnotations, tc.pvc.Annotations)
 		})
 	}
 }
@@ -225,43 +216,16 @@ func TestResetPVCSpec(t *testing.T) {
 			before := tc.pvc.DeepCopy()
 			resetPVCSpec(&tc.pvc, tc.vsName)
 
-			if tc.pvc.Name != before.Name {
-				t.Errorf("unexpected change to Object.Name, Want: %s; Got %s", before.Name, tc.pvc.Name)
-			}
-			if tc.pvc.Namespace != before.Namespace {
-				t.Errorf("unexpected change to Object.Namespace, Want: %s; Got %s", before.Namespace, tc.pvc.Namespace)
-			}
-
-			if len(tc.pvc.Spec.AccessModes) != len(before.Spec.AccessModes) {
-				t.Errorf("unexpected count of Spec.AccessModes, Want: %d; Got: %d", len(before.Spec.AccessModes), len(tc.pvc.Spec.AccessModes))
-			}
-
-			if tc.pvc.Spec.Selector.String() != before.Spec.Selector.String() {
-				t.Errorf("unexpected change to Spec.Selector, Want: %s; Got: %s", before.Spec.Selector.String(), tc.pvc.Spec.Selector.String())
-			}
-
-			if tc.pvc.Spec.Resources.String() != before.Spec.Resources.String() {
-				t.Errorf("unexpected change to Spec.Resources, Want: %s; Got: %s", before.Spec.Resources.String(), tc.pvc.Spec.Resources.String())
-			}
-
-			if tc.pvc.Spec.VolumeName != "" {
-				t.Errorf("expected change to Spec.VolumeName missing, Want: \"\"; Got: %s", tc.pvc.Spec.VolumeName)
-			}
-
-			if *tc.pvc.Spec.VolumeMode != *before.Spec.VolumeMode {
-				t.Errorf("unexpected change to Spec.VolumeMode, Want: %s; Got: %s", *before.Spec.VolumeMode, *tc.pvc.Spec.VolumeMode)
-			}
-
-			if tc.pvc.Spec.DataSource == nil {
-				t.Error("expected change to Spec.DataSource missing")
-			}
-
-			if tc.pvc.Spec.DataSource.Kind != "VolumeSnapshot" {
-				t.Errorf("expected change to Spec.DataSource.Kind missing, Want: VolumeSnapshot, Got: %s", tc.pvc.Spec.DataSource.Kind)
-			}
-			if tc.pvc.Spec.DataSource.Name != tc.vsName {
-				t.Errorf("expected change to Spec.DataSource.Name missing, Want: %s, Got: %s", tc.vsName, tc.pvc.Spec.DataSource.Name)
-			}
+			assert.Equalf(t, tc.pvc.Name, before.Name, "unexpected change to Object.Name, Want: %s; Got %s", before.Name, tc.pvc.Name)
+			assert.Equalf(t, tc.pvc.Namespace, before.Namespace, "unexpected change to Object.Namespace, Want: %s; Got %s", before.Namespace, tc.pvc.Namespace)
+			assert.Equalf(t, tc.pvc.Spec.AccessModes, before.Spec.AccessModes, "unexpected Spec.AccessModes, Want: %v; Got: %v", before.Spec.AccessModes, tc.pvc.Spec.AccessModes)
+			assert.Equalf(t, tc.pvc.Spec.Selector, before.Spec.Selector, "unexpected change to Spec.Selector, Want: %s; Got: %s", before.Spec.Selector.String(), tc.pvc.Spec.Selector.String())
+			assert.Equalf(t, tc.pvc.Spec.Resources, before.Spec.Resources, "unexpected change to Spec.Resources, Want: %s; Got: %s", before.Spec.Resources.String(), tc.pvc.Spec.Resources.String())
+			assert.Emptyf(t, tc.pvc.Spec.VolumeName, "expected change to Spec.VolumeName missing, Want: \"\"; Got: %s", tc.pvc.Spec.VolumeName)
+			assert.Equalf(t, *tc.pvc.Spec.VolumeMode, *before.Spec.VolumeMode, "expected change to Spec.VolumeName missing, Want: \"\"; Got: %s", tc.pvc.Spec.VolumeName)
+			assert.NotNil(t, tc.pvc.Spec.DataSource, "expected change to Spec.DataSource missing")
+			assert.Equalf(t, tc.pvc.Spec.DataSource.Kind, "VolumeSnapshot", "expected change to Spec.DataSource.Kind missing, Want: VolumeSnapshot, Got: %s", tc.pvc.Spec.DataSource.Kind)
+			assert.Equalf(t, tc.pvc.Spec.DataSource.Name, tc.vsName, "expected change to Spec.DataSource.Name missing, Want: %s, Got: %s", tc.vsName, tc.pvc.Spec.DataSource.Name)
 		})
 	}
 }

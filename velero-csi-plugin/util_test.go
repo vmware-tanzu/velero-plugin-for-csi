@@ -19,6 +19,8 @@ package main
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	snapshotFake "github.com/kubernetes-csi/external-snapshotter/v2/pkg/client/clientset/versioned/fake"
 	"github.com/sirupsen/logrus"
@@ -154,19 +156,14 @@ func TestGetPVForPVC(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			actualPV, actualError := getPVForPVC(tc.inPVC, fakeClient.CoreV1())
 
-			if tc.expectError && actualError == nil {
-				t.Fatalf("getPVForPVC failed for [%s], Want error; Got nil error", tc.name)
-			}
-			if tc.expectError && actualPV != nil {
-				t.Fatalf("getPVForPVC failed for [%s], Want PV: nil; Got PV: %q", tc.name, actualPV)
+			if tc.expectError {
+				assert.NotNil(t, actualError, "Want error; Got nil error")
+				assert.Nilf(t, actualPV, "Want PV: nil; Got PV: %q", actualPV)
+				return
 			}
 
-			if !tc.expectError && actualError != nil {
-				t.Fatalf("getPVForPVC failed for [%s], Want: nil error; Got: %v", tc.name, actualError)
-			}
-			if !tc.expectError && actualPV.Name != tc.expectedPV.Name {
-				t.Fatalf("getPVForPVC failed for [%s], Want PV with name %q; Got PV with name %q", tc.name, tc.expectedPV.Name, actualPV.Name)
-			}
+			assert.Nilf(t, actualError, "Want: nil error; Got: %v", actualError)
+			assert.Equalf(t, actualPV.Name, tc.expectedPV.Name, "Want PV with name %q; Got PV with name %q", tc.expectedPV.Name, actualPV.Name)
 		})
 	}
 }
@@ -281,13 +278,8 @@ func TestGetPodsUsingPVC(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			actualPods, err := getPodsUsingPVC(tc.pvcNamespace, tc.pvcName, fakeClient.CoreV1())
-			if err != nil {
-				t.Fatalf("Want error=nil; Got error=%v", err)
-			}
-
-			if len(actualPods) != tc.expectedPodCount {
-				t.Fatalf("unexpected number of pods in result; Want: %d; Got: %d", tc.expectedPodCount, len(actualPods))
-			}
+			assert.Nilf(t, err, "Want error=nil; Got error=%v", err)
+			assert.Equalf(t, len(actualPods), tc.expectedPodCount, "unexpected number of pods in result; Want: %d; Got: %d", tc.expectedPodCount, len(actualPods))
 		})
 	}
 }
@@ -389,11 +381,10 @@ func TestGetPodVolumeNameForPVC(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			actualVolumeName, err := getPodVolumeNameForPVC(tc.pod, tc.pvcName)
 			if tc.expectError && err == nil {
-				t.Fatalf("getPodVolumeNameForPVC failed for [%s], Want error; Got nil error", tc.name)
+				assert.NotNil(t, err, "Want error; Got nil error")
+				return
 			}
-			if !tc.expectError && tc.expectedVolumeName != actualVolumeName {
-				t.Fatalf("getPodVolumeNameForPVC failed for [%s], unexpected podVolumename returned. Want %s; Got %s", tc.name, tc.expectedVolumeName, actualVolumeName)
-			}
+			assert.Equalf(t, tc.expectedVolumeName, actualVolumeName, "unexpected podVolumename returned. Want %s; Got %s", tc.expectedVolumeName, actualVolumeName)
 		})
 	}
 }
@@ -473,10 +464,7 @@ func TestGetPodVolumesUsingRestic(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			actualResticVolumes := getPodVolumesUsingRestic(tc.pod)
-			if len(tc.expectedResticVolumes) != len(actualResticVolumes) {
-				t.Fatalf("getPodVolumesUsingRestic failed for %q, unexpected number of volumes using resitc, Want: %d; Got: %d", tc.name, len(tc.expectedResticVolumes),
-					len(actualResticVolumes))
-			}
+			assert.Equal(t, tc.expectedResticVolumes, actualResticVolumes)
 		})
 	}
 }
@@ -517,9 +505,7 @@ func TestContains(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			actualResult := contains(tc.inSlice, tc.inKey)
-			if actualResult != tc.expectedResult {
-				t.Fatalf("contains failed for [%s], Want: %t; Got: %t", tc.name, tc.expectedResult, actualResult)
-			}
+			assert.Equal(t, tc.expectedResult, actualResult)
 		})
 	}
 }
@@ -697,9 +683,7 @@ func TestIsPVCBackedUpByRestic(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			actualIsResticUsed, _ := isPVCBackedUpByRestic(tc.inPVCNamespace, tc.inPVCName, fakeClient.CoreV1())
-			if actualIsResticUsed != tc.expectedIsResticUsed {
-				t.Fatalf("isPVCBackedUpByRestic failed for [%s], Want: %t; Got: %t", tc.name, tc.expectedIsResticUsed, actualIsResticUsed)
-			}
+			assert.Equal(t, tc.expectedIsResticUsed, actualIsResticUsed)
 		})
 	}
 }
@@ -778,23 +762,14 @@ func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			actualVSC, actualError := getVolumeSnapshotClassForStorageClass(tc.driverName, fakeClient.SnapshotV1beta1())
 
-			if tc.expectError && actualError == nil {
-				t.Fatalf("getVolumeSnapshotClassForStorageClass failed for [%s]. Want error; Got no error", tc.name)
-			}
-			if tc.expectError && actualVSC != nil {
-				t.Fatalf("getVolumeSnapshotClassForStorageClass failed for [%s], Want: nil result; Got non-nil result", tc.name)
-			}
 			if tc.expectError {
+				assert.NotNil(t, actualError)
+				assert.Nil(t, actualVSC)
 				return
 			}
 
-			if tc.expectedVSC.Name != actualVSC.Name {
-				t.Fatalf("getVolumeSnapshotClassForStorageClass failed for [%s], unexpected volumesnapshotclass name returned. Want: %s; Got:%s", tc.name, tc.expectedVSC.Name, actualVSC.Name)
-			}
-
-			if tc.expectedVSC.Driver != actualVSC.Driver {
-				t.Fatalf("getVolumeSnapshotClassForStorageClass failed for [%s], unexpected driver name returned. Want: %s; Got:%s", tc.name, tc.expectedVSC.Driver, actualVSC.Driver)
-			}
+			assert.Equalf(t, tc.expectedVSC.Name, actualVSC.Name, "unexpected volumesnapshotclass name returned. Want: %s; Got:%s", tc.name, tc.expectedVSC.Name, actualVSC.Name)
+			assert.Equalf(t, tc.expectedVSC.Driver, actualVSC.Driver, "unexpected driver name returned. Want: %s; Got:%s", tc.name, tc.expectedVSC.Driver, actualVSC.Driver)
 		})
 	}
 }
@@ -860,23 +835,11 @@ func TestGetVolumeSnapshotContentForVolumeSnapshot(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			actualVSC, actualError := getVolumeSnapshotContentForVolumeSnapshot(tc.volSnap, fakeClient.SnapshotV1beta1(), logrus.New().WithField("fake", "test"))
 			if tc.expectError && actualError == nil {
-				t.Fatalf("getVolumeSnapshotContentForVolumeSnapshot failed for [%s], Want non-nil error; Got nil error", tc.name)
-			}
-
-			if tc.exepctedVSC == nil && actualVSC != nil {
-				t.Fatalf("getVolumeSnapshotContentForVolumeSnapshot failed for [%s], Want nil result; Got non-nil result", tc.name)
-			}
-			if tc.exepctedVSC == nil {
+				assert.NotNil(t, actualError)
+				assert.Nil(t, actualVSC)
 				return
 			}
-
-			if actualVSC == nil && tc.exepctedVSC != nil {
-				t.Fatalf("getVolumeSnapshotContentForVolumeSnapshot failed for [%s], Want non-nil result; Got nil result", tc.name)
-			}
-
-			if actualVSC.Name != tc.exepctedVSC.Name {
-				t.Fatalf("getVolumeSnapshotContentForVolumeSnapshot failed for [%s], unexpected volumesnapshotcontent name; Want  %s; Got %s", tc.name, tc.exepctedVSC.Name, actualVSC.Name)
-			}
+			assert.Equal(t, tc.exepctedVSC, actualVSC)
 		})
 	}
 }
