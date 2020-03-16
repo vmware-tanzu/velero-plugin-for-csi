@@ -38,30 +38,24 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
 
-const (
-	veleroSnapshotNameAnnotation = "velero.io/volume-snapshot-name"
-)
-
 // CSISnapshotter is a backup item action plugin for Velero.
 type CSISnapshotter struct {
 	log logrus.FieldLogger
 }
 
-// AppliesTo returns information about which resources this action should be invoked for.
-// A BackupPlugin's Execute function will only be invoked on items that match the returned
-// selector. A zero-valued ResourceSelector matches all resources.
+// AppliesTo returns information indicating that the CSISnapshotter action should be invoked to backup PVCs.
 func (p *CSISnapshotter) AppliesTo() (velero.ResourceSelector, error) {
-	p.log.Info("CSISnapshotter AppliesTo")
+	p.log.Info("CSISnapshotterAction AppliesTo")
 
 	return velero.ResourceSelector{
 		IncludedResources: []string{"persistentvolumeclaims"},
 	}, nil
 }
 
-// Execute allows the ItemAction to perform arbitrary logic with the item being backed up,
-// in this case, setting a custom annotation on the item being backed up.
+// Execute recognizes PVCs backed by volumes provisioned by CSI drivers with volumesnapshotting capability and creates snapshots of the
+// underlying PVs by creating volumesnapshot CSI API objects that will trigger the CSI driver to perform the snapshot operation on the volume.
 func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
-	p.log.Info("CSISnapshotter Execute")
+	p.log.Info("Starting CSISnapshotterAction")
 
 	// Do nothing if volume snapshots have not been requested in this backup
 	if boolptr.IsSetToFalse(backup.Spec.SnapshotVolumes) {
@@ -149,9 +143,16 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.
 	if annotations == nil {
 		annotations = make(map[string]string)
 	}
-	annotations[veleroSnapshotNameAnnotation] = upd.Name
+	annotations[volumeSnapshotLabel] = upd.Name
 	annotations[velerov1api.BackupNameLabel] = backup.Name
 	accessor.SetAnnotations(annotations)
+
+	labels := accessor.GetLabels()
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels[volumeSnapshotLabel] = upd.Name
+	accessor.SetLabels(labels)
 
 	p.log.Info("Fetching volumesnapshotcontent for volumesnapshot")
 	snapshotContent, err := getVolumeSnapshotContentForVolumeSnapshot(upd, snapshotClient.SnapshotV1beta1(), p.log)

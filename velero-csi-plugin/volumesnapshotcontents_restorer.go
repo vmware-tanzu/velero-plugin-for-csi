@@ -17,13 +17,13 @@ limitations under the License.
 package main
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+
+	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 )
 
@@ -32,42 +32,52 @@ type VSCRestorer struct {
 	log logrus.FieldLogger
 }
 
+// AppliesTo returns information indicating VSCRestorer action should be invoked while restoring
+// volumesnapshotcontent.snapshot.storage.k8s.io resources
 func (p *VSCRestorer) AppliesTo() (velero.ResourceSelector, error) {
 	return velero.ResourceSelector{
 		IncludedResources: []string{"volumesnapshotcontent.snapshot.storage.k8s.io"},
 	}, nil
 }
 
+func resetVSCSpecForRestore(vsc *snapshotv1beta1api.VolumeSnapshotContent, snapshotHandle *string) {
+	// Spec of the backed-up object used the VolumeHandle as the source of the volumeSnapshotcontent.
+	// Restore operation will however, restore the volumesnapshotcontent using the snapshotHandle as the source.
+	vsc.Spec.DeletionPolicy = snapshotv1beta1api.VolumeSnapshotContentRetain
+	vsc.Spec.Source.VolumeHandle = nil
+	vsc.Spec.Source.SnapshotHandle = snapshotHandle
+	vsc.Spec.VolumeSnapshotRef.UID = ""
+	vsc.Spec.VolumeSnapshotRef.ResourceVersion = ""
+}
+
+// Execute modifies the volumesnapshotcontent's spec to use the storage provider snapshot handle as its source
+// instead of the storage provider volume handle, as in the original spec, allowing the newly provisioned volume to be
+// pre-populated with data from the volume snapshot.
 func (p *VSCRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
-	p.log.Info("Starting VSCRestorer")
+	p.log.Info("Starting VSCRestorerAction")
 	var vsc snapshotv1beta1api.VolumeSnapshotContent
 
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &vsc); err != nil {
-		return &velero.RestoreItemActionExecuteOutput{}, err
+		return &velero.RestoreItemActionExecuteOutput{}, errors.Wrapf(err, "failed to convert input.Item from unstructured")
 	}
 
-	_, snapshotClient, err := getClients()
-	if err != nil {
-		return nil, errors.WithStack(err)
+	var vscFromBackup snapshotv1beta1api.VolumeSnapshotContent
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured((input.ItemFromBackup.UnstructuredContent()), &vscFromBackup); err != nil {
+		return &velero.RestoreItemActionExecuteOutput{}, errors.Wrapf(err, "failed to convert input.ItemFromBackup from unstructured")
 	}
 
-	snapRef := vsc.Spec.VolumeSnapshotRef
-	volumeSnapshot, err := snapshotClient.SnapshotV1beta1().VolumeSnapshots(snapRef.Namespace).Get(snapRef.Name, metav1.GetOptions{})
-	//TODO: better error handling, account for a 404
-	if err != nil {
-		return nil, errors.WithStack(err)
+	if vscFromBackup.Status == nil || vscFromBackup.Status.SnapshotHandle == nil {
+		return &velero.RestoreItemActionExecuteOutput{}, errors.Errorf("unable to lookup snapshotHandle from status")
 	}
 
-	// Make sure we're referencing the new UID for the restored VolumeSnapshot
-	// This is likely unnecessary, but what _is_ necessary is that the old UID be cleared.
-	vsc.Spec.VolumeSnapshotRef.UID = volumeSnapshot.UID
+	resetVSCSpecForRestore(&vsc, vscFromBackup.Status.SnapshotHandle)
 
 	vscMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vsc)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	p.log.Info("Returning from VSCRestorer")
+	p.log.Info("Returning from VSCRestorerAction")
 
 	return &velero.RestoreItemActionExecuteOutput{
 		UpdatedItem: &unstructured.Unstructured{Object: vscMap},
