@@ -25,8 +25,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	corev1api "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -50,6 +50,20 @@ func (p *CSISnapshotter) AppliesTo() (velero.ResourceSelector, error) {
 	return velero.ResourceSelector{
 		IncludedResources: []string{"persistentvolumeclaims"},
 	}, nil
+}
+
+func setPVCAnnotationsAndLabels(pvc *corev1api.PersistentVolumeClaim, snapshotName, backupName string) {
+	if pvc.Annotations == nil {
+		pvc.Annotations = make(map[string]string)
+	}
+
+	pvc.Annotations[volumeSnapshotLabel] = snapshotName
+	pvc.Annotations[velerov1api.BackupNameLabel] = backupName
+
+	if pvc.Labels == nil {
+		pvc.Labels = make(map[string]string)
+	}
+	pvc.Labels[volumeSnapshotLabel] = snapshotName
 }
 
 // Execute recognizes PVCs backed by volumes provisioned by CSI drivers with volumesnapshotting capability and creates snapshots of the
@@ -134,25 +148,7 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.
 	}
 	p.log.Infof("Created volumesnapshot %s", fmt.Sprintf("%s/%s", upd.Namespace, upd.Name))
 
-	accessor, err := meta.Accessor(item)
-	if err != nil {
-		return nil, nil, errors.WithStack(err)
-	}
-
-	annotations := accessor.GetAnnotations()
-	if annotations == nil {
-		annotations = make(map[string]string)
-	}
-	annotations[volumeSnapshotLabel] = upd.Name
-	annotations[velerov1api.BackupNameLabel] = backup.Name
-	accessor.SetAnnotations(annotations)
-
-	labels := accessor.GetLabels()
-	if labels == nil {
-		labels = make(map[string]string)
-	}
-	labels[volumeSnapshotLabel] = upd.Name
-	accessor.SetLabels(labels)
+	setPVCAnnotationsAndLabels(&pvc, upd.Name, backup.Name)
 
 	p.log.Info("Fetching volumesnapshotcontent for volumesnapshot")
 	snapshotContent, err := getVolumeSnapshotContentForVolumeSnapshot(upd, snapshotClient.SnapshotV1beta1(), p.log)
@@ -183,7 +179,12 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.
 		p.log.Debugf("%s: %s", ai.GroupResource.String(), ai.Name)
 	}
 
-	return item, additionalItems, nil
+	pvcMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&pvc)
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
+	}
+
+	return &unstructured.Unstructured{Object: pvcMap}, additionalItems, nil
 }
 
 func getClients() (*kubernetes.Clientset, *snapshotter.Clientset, error) {
