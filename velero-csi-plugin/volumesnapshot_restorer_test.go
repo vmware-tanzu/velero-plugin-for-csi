@@ -19,6 +19,8 @@ package main
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -74,33 +76,15 @@ func TestResetVolumeSnapshotSpecForRestore(t *testing.T) {
 			before := tc.vs.DeepCopy()
 			resetVolumeSnapshotSpecForRestore(&tc.vs, &tc.vscName)
 
-			if tc.vs.Name != before.Name {
-				t.Errorf("%s failed, unexpected change to Object.Name, Want: %s; Got %s", tc.name, before.Name, tc.vs.Name)
-			}
-			if tc.vs.Namespace != before.Namespace {
-				t.Errorf("%s failed, unexpected change to Object.Namespace, Want: %s; Got %s", tc.name, before.Namespace, tc.vs.Namespace)
-			}
-
-			if tc.vs.Spec.Source.PersistentVolumeClaimName != nil {
-				t.Errorf("%s failed, unexpected value for Source.PersistentVolumeClaimName, Want: nil; Got: %s",
-					tc.name, *tc.vs.Spec.Source.PersistentVolumeClaimName)
-			}
-			if tc.vs.Spec.Source.VolumeSnapshotContentName == nil || *tc.vs.Spec.Source.VolumeSnapshotContentName != tc.vscName {
-				got := "nil"
-				if tc.vs.Spec.Source.VolumeSnapshotContentName != nil {
-					got = *tc.vs.Spec.Source.VolumeSnapshotContentName
-				}
-				t.Errorf("%s failed, unexpected value for Source.VolumeSnapshotContentName, Want: %s; Got: %s", tc.name, tc.vscName, got)
-			}
-
-			if *tc.vs.Spec.VolumeSnapshotClassName != *before.Spec.VolumeSnapshotClassName {
-				t.Errorf("%s failed, unexpected value for Spec.VolumeSnapshotClassName, Want: %s, Got: %s",
-					tc.name, *tc.vs.Spec.VolumeSnapshotClassName, *before.Spec.VolumeSnapshotClassName)
-			}
-
-			if tc.vs.Status != nil {
-				t.Errorf("%s failed, unexpected value for Status, Want: nil; Got: %v", tc.name, tc.vs.Status)
-			}
+			assert.Equalf(t, tc.vs.Name, before.Name, "unexpected change to Object.Name, Want: %s; Got %s", tc.name, before.Name, tc.vs.Name)
+			assert.Equal(t, tc.vs.Namespace, before.Namespace, "unexpected change to Object.Namespace, Want: %s; Got %s", tc.name, before.Namespace, tc.vs.Namespace)
+			assert.NotNil(t, tc.vs.Spec.Source)
+			assert.Nil(t, tc.vs.Spec.Source.PersistentVolumeClaimName)
+			assert.NotNil(t, tc.vs.Spec.Source.VolumeSnapshotContentName)
+			assert.Equal(t, *tc.vs.Spec.Source.VolumeSnapshotContentName, tc.vscName)
+			assert.Equal(t, *tc.vs.Spec.VolumeSnapshotClassName, *before.Spec.VolumeSnapshotClassName, "unexpected value for Spec.VolumeSnapshotClassName, Want: %s, Got: %s",
+				*tc.vs.Spec.VolumeSnapshotClassName, *before.Spec.VolumeSnapshotClassName)
+			assert.Nil(t, tc.vs.Status)
 		})
 	}
 }
