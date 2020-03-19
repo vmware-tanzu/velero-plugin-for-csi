@@ -145,9 +145,20 @@ func getVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1beta1api.Volum
 			time.Sleep(5 * time.Second)
 			continue
 		}
+
 		snapshotContent, err = snapshotClient.VolumeSnapshotContents().Get(*vs.Status.BoundVolumeSnapshotContentName, metav1.GetOptions{})
 		if err != nil {
 			return nil, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotcontent %s for volumesnapshot %s/%s", *vs.Status.BoundVolumeSnapshotContentName, volSnap.Namespace, volSnap.Name))
+		}
+
+		// we need to wait for the VolumeSnaphotContent to have a snapshot handle because during restore,
+		// we'll use that snapshot handle as the source for the VolumeSnapshotContent so it's statically
+		// bound to the existing snapshot.
+		// TODO: add timeout
+		if snapshotContent.Status == nil || snapshotContent.Status.SnapshotHandle == nil {
+			log.Infof("Waiting for volumesnapshotcontents %s to have snapshot handle. Retrying in 5s", snapshotContent.Name)
+			time.Sleep(5 * time.Second)
+			continue
 		}
 
 		break
