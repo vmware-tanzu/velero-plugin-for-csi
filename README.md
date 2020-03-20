@@ -45,19 +45,19 @@ kubectl apply -k "github.com/kubernetes-sigs/aws-ebs-csi-driver/deploy/kubernete
 Apply the storage class
 
 ```
-kubectl apply -f sc.yaml
+kubectl apply -f examples/sc.yaml
 ```
 
 Apply the snapshot class
 
 ```
-kubectl apply -f snapshotclass.yaml
+kubectl apply -f examples/snapshotclass.yaml
 ```
 
 Create the demo application
 
 ```
-kubectl apply -f demo.yaml
+kubectl apply -f examples/demo.yaml
 ```
 
 Either start Velero locally, or edit a deployment, and provide the following flag to update the order in which to restore resources:
