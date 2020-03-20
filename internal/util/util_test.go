@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package util
 
 import (
 	"testing"
@@ -154,7 +154,7 @@ func TestGetPVForPVC(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualPV, actualError := getPVForPVC(tc.inPVC, fakeClient.CoreV1())
+			actualPV, actualError := GetPVForPVC(tc.inPVC, fakeClient.CoreV1())
 
 			if tc.expectError {
 				assert.NotNil(t, actualError, "Want error; Got nil error")
@@ -277,7 +277,7 @@ func TestGetPodsUsingPVC(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualPods, err := getPodsUsingPVC(tc.pvcNamespace, tc.pvcName, fakeClient.CoreV1())
+			actualPods, err := GetPodsUsingPVC(tc.pvcNamespace, tc.pvcName, fakeClient.CoreV1())
 			assert.Nilf(t, err, "Want error=nil; Got error=%v", err)
 			assert.Equalf(t, len(actualPods), tc.expectedPodCount, "unexpected number of pods in result; Want: %d; Got: %d", tc.expectedPodCount, len(actualPods))
 		})
@@ -379,7 +379,7 @@ func TestGetPodVolumeNameForPVC(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualVolumeName, err := getPodVolumeNameForPVC(tc.pod, tc.pvcName)
+			actualVolumeName, err := GetPodVolumeNameForPVC(tc.pod, tc.pvcName)
 			if tc.expectError && err == nil {
 				assert.NotNil(t, err, "Want error; Got nil error")
 				return
@@ -463,7 +463,7 @@ func TestGetPodVolumesUsingRestic(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualResticVolumes := getPodVolumesUsingRestic(tc.pod)
+			actualResticVolumes := GetPodVolumesUsingRestic(tc.pod)
 			assert.Equal(t, tc.expectedResticVolumes, actualResticVolumes)
 		})
 	}
@@ -504,7 +504,7 @@ func TestContains(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualResult := contains(tc.inSlice, tc.inKey)
+			actualResult := Contains(tc.inSlice, tc.inKey)
 			assert.Equal(t, tc.expectedResult, actualResult)
 		})
 	}
@@ -682,7 +682,7 @@ func TestIsPVCBackedUpByRestic(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualIsResticUsed, _ := isPVCBackedUpByRestic(tc.inPVCNamespace, tc.inPVCName, fakeClient.CoreV1())
+			actualIsResticUsed, _ := IsPVCBackedUpByRestic(tc.inPVCNamespace, tc.inPVCName, fakeClient.CoreV1())
 			assert.Equal(t, tc.expectedIsResticUsed, actualIsResticUsed)
 		})
 	}
@@ -760,7 +760,7 @@ func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualVSC, actualError := getVolumeSnapshotClassForStorageClass(tc.driverName, fakeClient.SnapshotV1beta1())
+			actualVSC, actualError := GetVolumeSnapshotClassForStorageClass(tc.driverName, fakeClient.SnapshotV1beta1())
 
 			if tc.expectError {
 				assert.NotNil(t, actualError)
@@ -837,7 +837,7 @@ func TestGetVolumeSnapshotContentForVolumeSnapshot(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualVSC, actualError := getVolumeSnapshotContentForVolumeSnapshot(tc.volSnap, fakeClient.SnapshotV1beta1(), logrus.New().WithField("fake", "test"))
+			actualVSC, actualError := GetVolumeSnapshotContentForVolumeSnapshot(tc.volSnap, fakeClient.SnapshotV1beta1(), logrus.New().WithField("fake", "test"))
 			if tc.expectError && actualError == nil {
 				assert.NotNil(t, actualError)
 				assert.Nil(t, actualVSC)

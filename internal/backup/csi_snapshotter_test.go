@@ -13,13 +13,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package main
+package backup
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	corev1api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -67,9 +68,9 @@ func TestSetPVCAnnotationsAndLabels(t *testing.T) {
 		assert.NotNil(t, tc.pvc.Annotations, "Want: non-nil annotation; Got: nil annotation")
 		assert.NotNil(t, tc.pvc.Labels, "Want: non-nil labels; Got: nil labels")
 
-		actualSnapshotNameAnnotation, exists := tc.pvc.Annotations[volumeSnapshotLabel]
-		assert.Truef(t, exists, "missing expected value for annotation %s, Want: %s", volumeSnapshotLabel, tc.snapshotName)
-		assert.Equalf(t, actualSnapshotNameAnnotation, tc.snapshotName, "unexpected value for annotation %s, Want: %s; Got: %s", volumeSnapshotLabel, tc.snapshotName, actualSnapshotNameAnnotation)
+		actualSnapshotNameAnnotation, exists := tc.pvc.Annotations[util.VolumeSnapshotLabel]
+		assert.Truef(t, exists, "missing expected value for annotation %s, Want: %s", util.VolumeSnapshotLabel, tc.snapshotName)
+		assert.Equalf(t, actualSnapshotNameAnnotation, tc.snapshotName, "unexpected value for annotation %s, Want: %s; Got: %s", util.VolumeSnapshotLabel, tc.snapshotName, actualSnapshotNameAnnotation)
 
 		actualBackupName, exists := tc.pvc.Annotations[velerov1api.BackupNameLabel]
 		assert.Truef(t, exists, "missing expected value for annotation %s, Want: %s", velerov1api.BackupNameLabel, tc.backupName)
@@ -83,9 +84,9 @@ func TestSetPVCAnnotationsAndLabels(t *testing.T) {
 			}
 		}
 
-		actualSnapshotNameLabel, exists := tc.pvc.Labels[volumeSnapshotLabel]
-		assert.Truef(t, exists, "missing expected value for label %s, Want: %s", volumeSnapshotLabel, tc.snapshotName)
-		assert.Equalf(t, actualSnapshotNameLabel, tc.snapshotName, "unexpected value for label %s, Want: %s; Got: %s", volumeSnapshotLabel, tc.snapshotName, actualSnapshotNameLabel)
+		actualSnapshotNameLabel, exists := tc.pvc.Labels[util.VolumeSnapshotLabel]
+		assert.Truef(t, exists, "missing expected value for label %s, Want: %s", util.VolumeSnapshotLabel, tc.snapshotName)
+		assert.Equalf(t, actualSnapshotNameLabel, tc.snapshotName, "unexpected value for label %s, Want: %s; Got: %s", util.VolumeSnapshotLabel, tc.snapshotName, actualSnapshotNameLabel)
 
 		if before.Labels != nil {
 			for k, e := range before.Labels {
