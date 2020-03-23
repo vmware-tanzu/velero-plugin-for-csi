@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package restore
 
 import (
 	"github.com/pkg/errors"
@@ -29,7 +29,7 @@ import (
 
 // VSCRestorer is a restore item action plugin for Velero
 type VSCRestorer struct {
-	log logrus.FieldLogger
+	Log logrus.FieldLogger
 }
 
 // AppliesTo returns information indicating VSCRestorer action should be invoked while restoring
@@ -54,7 +54,7 @@ func resetVSCSpecForRestore(vsc *snapshotv1beta1api.VolumeSnapshotContent, snaps
 // instead of the storage provider volume handle, as in the original spec, allowing the newly provisioned volume to be
 // pre-populated with data from the volume snapshot.
 func (p *VSCRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
-	p.log.Info("Starting VSCRestorerAction")
+	p.Log.Info("Starting VSCRestorerAction")
 	var vsc snapshotv1beta1api.VolumeSnapshotContent
 
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &vsc); err != nil {
@@ -77,7 +77,7 @@ func (p *VSCRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vel
 		return nil, errors.WithStack(err)
 	}
 
-	p.log.Info("Returning from VSCRestorerAction")
+	p.Log.Info("Returning from VSCRestorerAction")
 
 	return &velero.RestoreItemActionExecuteOutput{
 		UpdatedItem: &unstructured.Unstructured{Object: vscMap},

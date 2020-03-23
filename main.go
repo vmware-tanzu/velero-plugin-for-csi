@@ -19,6 +19,8 @@ package main
 import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
+	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/backup"
+	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/restore"
 	veleroplugin "github.com/vmware-tanzu/velero/pkg/plugin/framework"
 )
 
@@ -33,17 +35,17 @@ func main() {
 }
 
 func newCSISnapshotter(logger logrus.FieldLogger) (interface{}, error) {
-	return &CSISnapshotter{log: logger}, nil
+	return &backup.CSISnapshotter{Log: logger}, nil
 }
 
 func newCSIRestorer(logger logrus.FieldLogger) (interface{}, error) {
-	return &CSIRestorer{log: logger}, nil
+	return &restore.CSIRestorer{Log: logger}, nil
 }
 
 func newVSCRestorer(logger logrus.FieldLogger) (interface{}, error) {
-	return &VSCRestorer{log: logger}, nil
+	return &restore.VSCRestorer{Log: logger}, nil
 }
 
 func newVSRestorer(logger logrus.FieldLogger) (interface{}, error) {
-	return &VSRestorer{log: logger}, nil
+	return &restore.VSRestorer{Log: logger}, nil
 }

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package restore
 
 import (
 	"github.com/pkg/errors"
@@ -29,7 +29,7 @@ import (
 
 // VSRestorer is a restore item action for VolumeSnapshots
 type VSRestorer struct {
-	log logrus.FieldLogger
+	Log logrus.FieldLogger
 }
 
 // AppliesTo returns information indicating that VSRestorer action should be invoked while restoring
@@ -51,7 +51,7 @@ func resetVolumeSnapshotSpecForRestore(vs *snapshotv1beta1api.VolumeSnapshot, vs
 // rather than the original PVC the snapshot was created from, so it can be statically re-bound to the
 // volumesnapshotcontent on restore
 func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
-	p.log.Info("Starting VSRestorerAction")
+	p.Log.Info("Starting VSRestorerAction")
 	var vs snapshotv1beta1api.VolumeSnapshot
 
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &vs); err != nil {
@@ -74,7 +74,7 @@ func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vele
 		return nil, errors.WithStack(err)
 	}
 
-	p.log.Info("Returning from VSRestorerAction")
+	p.Log.Info("Returning from VSRestorerAction")
 
 	return &velero.RestoreItemActionExecuteOutput{
 		UpdatedItem: &unstructured.Unstructured{Object: vsMap},

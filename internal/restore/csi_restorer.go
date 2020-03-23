@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package restore
 
 import (
 	"github.com/pkg/errors"
@@ -25,13 +25,14 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 )
 
 // CSIRestorer is a restore item action plugin for Velero
 type CSIRestorer struct {
-	log logrus.FieldLogger
+	Log logrus.FieldLogger
 }
 
 // AppliesTo returns information indicating that the CSIRestorer action should be run while restoring PVCs.
@@ -48,7 +49,7 @@ func resetPVCAnnotations(pvc *corev1api.PersistentVolumeClaim, preserve []string
 		return
 	}
 	for k := range pvc.Annotations {
-		if !contains(preserve, k) {
+		if !util.Contains(preserve, k) {
 			delete(pvc.Annotations, k)
 		}
 	}
@@ -72,13 +73,13 @@ func (p *CSIRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vel
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &pvc); err != nil {
 		return nil, errors.WithStack(err)
 	}
-	p.log.Infof("Starting CSIRestorerAction for PVC %s/%s", pvc.Namespace, pvc.Name)
+	p.Log.Infof("Starting CSIRestorerAction for PVC %s/%s", pvc.Namespace, pvc.Name)
 
-	resetPVCAnnotations(&pvc, []string{velerov1api.BackupNameLabel, volumeSnapshotLabel})
+	resetPVCAnnotations(&pvc, []string{velerov1api.BackupNameLabel, util.VolumeSnapshotLabel})
 
-	volumeSnapshotName, ok := pvc.Annotations[volumeSnapshotLabel]
+	volumeSnapshotName, ok := pvc.Annotations[util.VolumeSnapshotLabel]
 	if !ok {
-		p.log.Infof("Skipping CSIRestorerAction for PVC %s/%s, PVC does not have a CSI volumesnapshot.", pvc.Namespace, pvc.Name)
+		p.Log.Infof("Skipping CSIRestorerAction for PVC %s/%s, PVC does not have a CSI volumesnapshot.", pvc.Namespace, pvc.Name)
 		return &velero.RestoreItemActionExecuteOutput{
 			UpdatedItem: input.Item,
 		}, nil
@@ -89,7 +90,7 @@ func (p *CSIRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vel
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	p.log.Infof("Returning from CSIRestorerAction for PVC %s/%s", pvc.Namespace, pvc.Name)
+	p.Log.Infof("Returning from CSIRestorerAction for PVC %s/%s", pvc.Namespace, pvc.Name)
 
 	return &velero.RestoreItemActionExecuteOutput{
 		UpdatedItem: &unstructured.Unstructured{Object: pvcMap},

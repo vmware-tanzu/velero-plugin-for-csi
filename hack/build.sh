@@ -46,4 +46,4 @@ go mod download
 go build \
     -o ${OUTPUT} \
     -installsuffix "static" \
-    ./velero-csi-plugin
+    ./
