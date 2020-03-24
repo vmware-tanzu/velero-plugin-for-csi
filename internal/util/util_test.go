@@ -18,6 +18,7 @@ package util
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -844,6 +845,39 @@ func TestGetVolumeSnapshotContentForVolumeSnapshot(t *testing.T) {
 				return
 			}
 			assert.Equal(t, tc.exepctedVSC, actualVSC)
+		})
+	}
+}
+
+func TestWaitForVolumesnapshotReconcile(t *testing.T) {
+	boundTestVSC := "fake-vsc"
+	validVS := &snapshotv1beta1api.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vs",
+			Namespace: "default",
+		},
+		Status: &snapshotv1beta1api.VolumeSnapshotStatus{
+			BoundVolumeSnapshotContentName: &boundTestVSC,
+		},
+	}
+
+	objs := []runtime.Object{validVS}
+	fakeClient := snapshotFake.NewSimpleClientset(objs...)
+
+	testCases := []struct {
+		name string
+		vs   snapshotv1beta1api.VolumeSnapshot
+	}{
+		{
+			name: "should return from waiting",
+			vs:   *validVS,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			WaitForVolumesnapshotReconcile(&tc.vs, logrus.New().WithField("fake", "test"), fakeClient.SnapshotV1beta1(), 1*time.Second)
+			// should return and not wait indefinitely
 		})
 	}
 }

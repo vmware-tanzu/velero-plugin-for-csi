@@ -101,7 +101,7 @@ ci-%:
 	$(MAKE) --no-print-directory BIN=$* ci
 
 test: build-dirs
-	@$(MAKE) shell  CMD="-c 'go test -v -cover ./...'"
+	@$(MAKE) shell  CMD="-c 'go test -timeout 30s -v -cover ./...'"
 
 ci: verify-modules all test
 	IMAGE=velero-plugin-for-csi:pr-verify $(MAKE) container
