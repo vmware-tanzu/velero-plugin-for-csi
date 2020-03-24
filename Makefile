@@ -13,8 +13,7 @@
 # limitations under the License.
 
 # The binary to build (just the basename).
-BIN ?= $(wildcard velero-*)
-
+BIN ?= velero-plugin-for-csi
 
 BUILD_IMAGE ?= golang:1.13-stretch
 
@@ -53,7 +52,6 @@ _output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs
 	$(MAKE) shell CMD="-c '\
 		GOOS=$(GOOS) \
 		GOARCH=$(GOARCH) \
-		PKG=$(PKG) \
 		BIN=$(BIN) \
 		OUTPUT_DIR=/output/$(GOOS)/$(GOARCH) \
 		./hack/build.sh'"
@@ -83,7 +81,7 @@ build-dirs:
 	@mkdir -p _output/bin/$(GOOS)/$(GOARCH)
 	@mkdir -p .go/src/$(PKG) .go/pkg .go/bin .go/std/$(GOOS)/$(GOARCH) .go/go-build
 
-container: all
+container: all build-dirs
 	cp Dockerfile _output/bin/$(GOOS)/$(GOARCH)/Dockerfile
 	docker build -t $(IMAGE) -f _output/bin/$(GOOS)/$(GOARCH)/Dockerfile _output/bin/$(GOOS)/$(GOARCH)
 
@@ -106,6 +104,7 @@ test: build-dirs
 	@$(MAKE) shell  CMD="-c 'go test -v -cover ./...'"
 
 ci: verify-modules all test
+	IMAGE=velero-plugin-for-csi:pr-verify $(MAKE) container
 
 clean:
 	@echo "cleaning"
