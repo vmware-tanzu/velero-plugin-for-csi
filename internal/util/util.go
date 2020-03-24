@@ -134,24 +134,35 @@ func GetVolumeSnapshotClassForStorageClass(provisioner string, snapshotClient sn
 	return nil, errors.Errorf("failed to get volumesnapshotclass for provisioner %s", provisioner)
 }
 
+// WaitForVolumesnapshotReconcile waits for volumesnapshot status to be reconciled with BoundVolumeSnapthotContent
+func WaitForVolumesnapshotReconcile(vs *snapshotv1beta1api.VolumeSnapshot, log logrus.FieldLogger, snapshotClient snapshotter.SnapshotV1beta1Interface, interval time.Duration) error {
+	// TODO: add timeout
+	for {
+		vs, err := snapshotClient.VolumeSnapshots(vs.Namespace).Get(vs.Name, metav1.GetOptions{})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if vs.Status != nil && vs.Status.BoundVolumeSnapshotContentName != nil {
+			break
+		}
+		log.Infof("Waiting for CSI driver to reconcile volumesnapshot %s/%s. Retrying in %ds", vs.Namespace, vs.Name, interval/time.Second)
+		time.Sleep(interval)
+	}
+	return nil
+}
+
+// GetVolumeSnapshotContentForVolumeSnapshot returns the volumesnapshotcontent object associated with the volumesnapshot
 func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1beta1api.VolumeSnapshot, snapshotClient snapshotter.SnapshotV1beta1Interface, log logrus.FieldLogger) (*snapshotv1beta1api.VolumeSnapshotContent, error) {
 	var snapshotContent *snapshotv1beta1api.VolumeSnapshotContent
 	for {
-		vs, err := snapshotClient.VolumeSnapshots(volSnap.Namespace).Get(volSnap.Name, metav1.GetOptions{})
+		err := WaitForVolumesnapshotReconcile(volSnap, log, snapshotClient, 5*time.Second)
 		if err != nil {
-			return nil, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshot %s/%s", volSnap.Namespace, volSnap.Name))
+			return nil, errors.WithStack(err)
 		}
 
-		// TODO: add timeout
-		if vs.Status == nil || vs.Status.BoundVolumeSnapshotContentName == nil {
-			log.Infof("Waiting for CSI driver to reconcile volumesnapshot %s/%s. Retrying in 5s", volSnap.Namespace, volSnap.Name)
-			time.Sleep(5 * time.Second)
-			continue
-		}
-
-		snapshotContent, err = snapshotClient.VolumeSnapshotContents().Get(*vs.Status.BoundVolumeSnapshotContentName, metav1.GetOptions{})
+		snapshotContent, err = snapshotClient.VolumeSnapshotContents().Get(*volSnap.Status.BoundVolumeSnapshotContentName, metav1.GetOptions{})
 		if err != nil {
-			return nil, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotcontent %s for volumesnapshot %s/%s", *vs.Status.BoundVolumeSnapshotContentName, volSnap.Namespace, volSnap.Name))
+			return nil, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotcontent %s for volumesnapshot %s/%s", *volSnap.Status.BoundVolumeSnapshotContentName, volSnap.Namespace, volSnap.Name))
 		}
 
 		// we need to wait for the VolumeSnaphotContent to have a snapshot handle because during restore,
