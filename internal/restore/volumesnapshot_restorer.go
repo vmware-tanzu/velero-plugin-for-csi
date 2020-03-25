@@ -21,9 +21,13 @@ import (
 	"github.com/sirupsen/logrus"
 
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	core_v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
+	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 )
 
@@ -58,16 +62,61 @@ func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vele
 		return &velero.RestoreItemActionExecuteOutput{}, errors.Wrapf(err, "failed to convert input.Item from unstructured")
 	}
 
-	var vsFromBackup snapshotv1beta1api.VolumeSnapshot
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured((input.ItemFromBackup.UnstructuredContent()), &vsFromBackup); err != nil {
-		return &velero.RestoreItemActionExecuteOutput{}, errors.Wrapf(err, "failed to convert input.ItemFromBackup from unstructured")
+	labels := vs.Labels
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	snapHandle, exists := labels[util.VolumeSnapshotHandleLabel]
+	if !exists {
+		return nil, errors.Errorf("Volumesnapshot %s/%s does not have a %s label", vs.Namespace, vs.Name, util.VolumeSnapshotHandleLabel)
+	}
+	// TODO: refactor to reduce copy-pasta
+	csiDriverName, exists := labels[util.CSIDriverNameLabel]
+	if !exists {
+		return nil, errors.Errorf("Volumesnapshot %s/%s does not have a %s label", vs.Namespace, vs.Name, util.CSIDriverNameLabel)
 	}
 
-	if vsFromBackup.Status == nil || vsFromBackup.Status.BoundVolumeSnapshotContentName == nil {
-		return &velero.RestoreItemActionExecuteOutput{}, errors.Errorf("unable to lookup BoundVolumeSnapshotContentName from status")
+	// TODO: generated name will be like velero-velero-something. Fix that.
+	vsc := snapshotv1beta1api.VolumeSnapshotContent{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "velero-" + vs.Name + "-",
+			Annotations: map[string]string{
+				velerov1api.RestoreNameLabel: input.Restore.Name,
+			},
+		},
+		Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{
+			DeletionPolicy: snapshotv1beta1api.VolumeSnapshotContentDelete,
+			Driver:         csiDriverName,
+			VolumeSnapshotRef: core_v1.ObjectReference{
+				Kind:      "VolumeSnapshot",
+				Namespace: vs.Namespace,
+				Name:      vs.Name,
+			},
+			Source: snapshotv1beta1api.VolumeSnapshotContentSource{
+				SnapshotHandle: &snapHandle,
+			},
+		},
 	}
 
-	resetVolumeSnapshotSpecForRestore(&vs, vsFromBackup.Status.BoundVolumeSnapshotContentName)
+	// Set Delete snapshot secret annotations if it was present during backup of the dynamic volumesnapshot
+	if util.IsVolumeSnapshotHasVSCDeleteSecret(&vs) {
+		vsc.Annotations[util.PrefixedSnapshotterSecretNameKey] = vs.Annotations[util.CSIDeleteSnapshotSecretName]
+		vsc.Annotations[util.PrefixedSnapshotterSecretNamespaceKey] = vs.Annotations[util.CSIDeleteSnapshotSecretNamespace]
+	}
+
+	_, snapClient, err := util.GetClients()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	vscupd, err := snapClient.SnapshotV1beta1().VolumeSnapshotContents().Create(&vsc)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to create volumesnapshotcontents %s", vsc.GenerateName)
+	}
+	p.Log.Infof("Created VolumesnapshotContents %s with static binding to volumesnapshot %s/%s", vscupd, vs.Namespace, vs.Name)
+
+	// Reset Spec to convert the dynamic snapshot to a static one.
+	resetVolumeSnapshotSpecForRestore(&vs, &vscupd.Name)
+	p.Log.Infof("VS Info: Source: snapHandle: %s, pvc==nil? %t", *vs.Spec.Source.VolumeSnapshotContentName, vs.Spec.Source.PersistentVolumeClaimName == nil)
 
 	vsMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vs)
 	if err != nil {
