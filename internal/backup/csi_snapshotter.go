@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
@@ -173,13 +174,24 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.
 			Namespace:     upd.Namespace,
 			Name:          upd.Name,
 		},
-		{
-			GroupResource: kuberesource.VolumeSnapshotContents,
-			Name:          snapshotContent.Name,
-		},
 	}
 
-	p.Log.Debug("Listing additional items to backup")
+	if util.IsVolumeSnapshotClassHasListerSecret(snapshotClass) {
+		listerSecretName := snapshotClass.Annotations[util.PrefixedSnapshotterListSecretNameKey]
+		listerSecretNamespace := snapshotClass.Annotations[util.PrefixedSnapshotterListSecretNamespaceKey]
+		additionalItems = append(additionalItems,
+			velero.ResourceIdentifier{
+				GroupResource: schema.GroupResource{Group: "", Resource: "secrets"},
+				Name:          listerSecretName,
+				Namespace:     listerSecretNamespace,
+			},
+		)
+		p.Log.Infof("Found SnapshotLister secret %s/%s from volumesnapshotclass %s annotation", listerSecretNamespace, listerSecretName, snapshotClass.Name)
+	} else {
+		p.Log.Infof("VolumesnapshotClass %s does not have a snapshot lister secret annotation", snapshotClass.Name)
+	}
+
+	p.Log.Infof("Returning %d additionalItems to backup", len(additionalItems))
 	for _, ai := range additionalItems {
 		p.Log.Debugf("%s: %s", ai.GroupResource.String(), ai.Name)
 	}

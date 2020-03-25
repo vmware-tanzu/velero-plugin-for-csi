@@ -18,7 +18,6 @@ package util
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -849,35 +848,266 @@ func TestGetVolumeSnapshotContentForVolumeSnapshot(t *testing.T) {
 	}
 }
 
-func TestWaitForVolumesnapshotReconcile(t *testing.T) {
-	boundTestVSC := "fake-vsc"
-	validVS := &snapshotv1beta1api.VolumeSnapshot{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "vs",
-			Namespace: "default",
-		},
-		Status: &snapshotv1beta1api.VolumeSnapshotStatus{
-			BoundVolumeSnapshotContentName: &boundTestVSC,
-		},
-	}
-
-	objs := []runtime.Object{validVS}
-	fakeClient := snapshotFake.NewSimpleClientset(objs...)
-
+func TestIsVolumeSnapshotClassHasListerSecret(t *testing.T) {
 	testCases := []struct {
-		name string
-		vs   snapshotv1beta1api.VolumeSnapshot
+		name      string
+		snapClass snapshotv1beta1api.VolumeSnapshotClass
+		expected  bool
 	}{
 		{
-			name: "should return from waiting",
-			vs:   *validVS,
+			name: "should find both annotations",
+			snapClass: snapshotv1beta1api.VolumeSnapshotClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "class-1",
+					Annotations: map[string]string{
+						PrefixedSnapshotterListSecretNameKey:      "snapListSecret",
+						PrefixedSnapshotterListSecretNamespaceKey: "awesome-ns",
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "should not find both annotations name is missing",
+			snapClass: snapshotv1beta1api.VolumeSnapshotClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "class-1",
+					Annotations: map[string]string{
+						"foo": "snapListSecret",
+						PrefixedSnapshotterListSecretNamespaceKey: "awesome-ns",
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "should not find both annotations namespace is missing",
+			snapClass: snapshotv1beta1api.VolumeSnapshotClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "class-1",
+					Annotations: map[string]string{
+						PrefixedSnapshotterListSecretNameKey: "snapListSecret",
+						"foo":                                "awesome-ns",
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "should not find expected annotation non-empty annotation",
+			snapClass: snapshotv1beta1api.VolumeSnapshotClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "class-2",
+					Annotations: map[string]string{
+						"foo": "snapListSecret",
+						"bar": "awesome-ns",
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "should not find expected annotation nil annotation",
+			snapClass: snapshotv1beta1api.VolumeSnapshotClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "class-3",
+					Annotations: nil,
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "should not find expected annotation empty annotation",
+			snapClass: snapshotv1beta1api.VolumeSnapshotClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "class-3",
+					Annotations: map[string]string{},
+				},
+			},
+			expected: false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			WaitForVolumesnapshotReconcile(&tc.vs, logrus.New().WithField("fake", "test"), fakeClient.SnapshotV1beta1(), 1*time.Second)
-			// should return and not wait indefinitely
+			actual := IsVolumeSnapshotClassHasListerSecret(&tc.snapClass)
+			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestIsVolumeSnapshotContentHasDeleteSecret(t *testing.T) {
+	testCases := []struct {
+		name     string
+		vsc      snapshotv1beta1api.VolumeSnapshotContent
+		expected bool
+	}{
+		{
+			name: "should find both annotations",
+			vsc: snapshotv1beta1api.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "vsc-1",
+					Annotations: map[string]string{
+						PrefixedSnapshotterSecretNameKey:      "delSnapSecret",
+						PrefixedSnapshotterSecretNamespaceKey: "awesome-ns",
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "should not find both annotations name is missing",
+			vsc: snapshotv1beta1api.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "vsc-2",
+					Annotations: map[string]string{
+						"foo":                                 "delSnapSecret",
+						PrefixedSnapshotterSecretNamespaceKey: "awesome-ns",
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "should not find both annotations namespace is missing",
+			vsc: snapshotv1beta1api.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "vsc-3",
+					Annotations: map[string]string{
+						PrefixedSnapshotterSecretNameKey: "delSnapSecret",
+						"foo":                            "awesome-ns",
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "should not find expected annotation non-empty annotation",
+			vsc: snapshotv1beta1api.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "vsc-4",
+					Annotations: map[string]string{
+						"foo": "delSnapSecret",
+						"bar": "awesome-ns",
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "should not find expected annotation empty annotation",
+			vsc: snapshotv1beta1api.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "vsc-5",
+					Annotations: map[string]string{},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "should not find expected annotation nil annotation",
+			vsc: snapshotv1beta1api.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "vsc-6",
+					Annotations: nil,
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := IsVolumeSnapshotContentHasDeleteSecret(&tc.vsc)
+			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestIsVolumeSnapshotHasVSCDeleteSecret(t *testing.T) {
+	testCases := []struct {
+		name     string
+		vs       snapshotv1beta1api.VolumeSnapshot
+		expected bool
+	}{
+		{
+			name: "should find both annotations",
+			vs: snapshotv1beta1api.VolumeSnapshot{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "vs-1",
+					Annotations: map[string]string{
+						"velero.io/csi-deletesnapshotsecret-name":      "snapDelSecret",
+						"velero.io/csi-deletesnapshotsecret-namespace": "awesome-ns",
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "should not find both annotations name is missing",
+			vs: snapshotv1beta1api.VolumeSnapshot{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "vs-1",
+					Annotations: map[string]string{
+						"foo": "snapDelSecret",
+						"velero.io/csi-deletesnapshotsecret-namespace": "awesome-ns",
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "should not find both annotations namespace is missing",
+			vs: snapshotv1beta1api.VolumeSnapshot{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "vs-1",
+					Annotations: map[string]string{
+						"velero.io/csi-deletesnapshotsecret-name": "snapDelSecret",
+						"foo": "awesome-ns",
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "should not find annotation non-empty annotation",
+			vs: snapshotv1beta1api.VolumeSnapshot{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "vs-1",
+					Annotations: map[string]string{
+						"foo": "snapDelSecret",
+						"bar": "awesome-ns",
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "should not find annotation empty annotation",
+			vs: snapshotv1beta1api.VolumeSnapshot{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "vs-1",
+					Annotations: map[string]string{},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "should not find annotation nil annotation",
+			vs: snapshotv1beta1api.VolumeSnapshot{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "vs-1",
+					Annotations: nil,
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := IsVolumeSnapshotHasVSCDeleteSecret(&tc.vs)
+			assert.Equal(t, tc.expected, actual)
 		})
 	}
 }
