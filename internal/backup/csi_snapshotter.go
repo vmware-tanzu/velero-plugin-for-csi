@@ -20,7 +20,6 @@ import (
 	"fmt"
 
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
-	snapshotter "github.com/kubernetes-csi/external-snapshotter/v2/pkg/client/clientset/versioned"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
@@ -28,9 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
@@ -83,7 +80,7 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.
 		return nil, nil, errors.WithStack(err)
 	}
 
-	client, snapshotClient, err := getClients()
+	client, snapshotClient, err := util.GetClients()
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
 	}
@@ -193,26 +190,4 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.
 	}
 
 	return &unstructured.Unstructured{Object: pvcMap}, additionalItems, nil
-}
-
-func getClients() (*kubernetes.Clientset, *snapshotter.Clientset, error) {
-	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	configOverrides := &clientcmd.ConfigOverrides{}
-	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
-	clientConfig, err := kubeConfig.ClientConfig()
-	if err != nil {
-		return nil, nil, errors.WithStack(err)
-	}
-
-	client, err := kubernetes.NewForConfig(clientConfig)
-	if err != nil {
-		return nil, nil, errors.WithStack(err)
-	}
-
-	snapshotterClient, err := snapshotter.NewForConfig(clientConfig)
-	if err != nil {
-		return nil, nil, errors.WithStack(err)
-	}
-
-	return client, snapshotterClient, nil
 }
