@@ -1111,3 +1111,87 @@ func TestIsVolumeSnapshotHasVSCDeleteSecret(t *testing.T) {
 		})
 	}
 }
+
+func TestIsVolumeSnapshotContentBound(t *testing.T) {
+	testCases := []struct {
+		name     string
+		vsc      snapshotv1beta1api.VolumeSnapshotContent
+		expected bool
+	}{
+		{
+			name: "should find vsc bound to an existing vs",
+			vsc: snapshotv1beta1api.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "vsc-1",
+				},
+				Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{
+					VolumeSnapshotRef: corev1api.ObjectReference{
+						Name:      "uid-match-vs",
+						Namespace: "foo",
+						UID:       "foo-bar-baz",
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "should find vsc unbound vs UID mismatch",
+			vsc: snapshotv1beta1api.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "vsc-2",
+				},
+				Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{
+					VolumeSnapshotRef: corev1api.ObjectReference{
+						Name:      "uid-mismatch-vs",
+						Namespace: "foo",
+						UID:       "something",
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "should find vsc unbound vs does not exist",
+			vsc: snapshotv1beta1api.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "vsc-3",
+				},
+				Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{
+					VolumeSnapshotRef: corev1api.ObjectReference{
+						Name:      "does-not-exist",
+						Namespace: "default",
+						UID:       "does-not-matter",
+					},
+				},
+			},
+			expected: false,
+		},
+	}
+
+	uidMatchVS := &snapshotv1beta1api.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "uid-match-vs",
+			Namespace: "foo",
+			UID:       "foo-bar-baz",
+		},
+	}
+
+	uidMisMatchVS := &snapshotv1beta1api.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "uid-mismatch-vs",
+			Namespace: "foo",
+			UID:       "something-else",
+		},
+	}
+
+	objs := []runtime.Object{uidMatchVS, uidMisMatchVS}
+	fakeClient := snapshotFake.NewSimpleClientset(objs...)
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual, err := IsVolumeSnapshotContentBound(&tc.vsc, fakeClient.SnapshotV1beta1())
+			assert.Nil(t, err)
+			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}

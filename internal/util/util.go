@@ -28,6 +28,7 @@ import (
 	snapshotterClientSet "github.com/kubernetes-csi/external-snapshotter/v2/pkg/client/clientset/versioned"
 	snapshotter "github.com/kubernetes-csi/external-snapshotter/v2/pkg/client/clientset/versioned/typed/volumesnapshot/v1beta1"
 	corev1api "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -232,4 +233,18 @@ func IsVolumeSnapshotHasVSCDeleteSecret(vs *snapshotv1beta1api.VolumeSnapshot) b
 	}
 
 	return nameExists && nsExists
+}
+
+// IsVolumeSnapshotContentBound returns whether the volumesnapshotcontent is bound to an existing volumesnapshot object.
+func IsVolumeSnapshotContentBound(vsc *snapshotv1beta1api.VolumeSnapshotContent, snapshotClient snapshotter.SnapshotV1beta1Interface) (bool, error) {
+	vs, err := snapshotClient.VolumeSnapshots(vsc.Spec.VolumeSnapshotRef.Namespace).Get(vsc.Spec.VolumeSnapshotRef.Name, metav1.GetOptions{})
+	if err != nil && apierrors.IsNotFound(err) {
+		return false, nil
+	}
+
+	if err != nil {
+		return false, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshot %s/%s", vsc.Spec.VolumeSnapshotRef.Namespace, vsc.Spec.VolumeSnapshotRef.Name))
+	}
+
+	return vs.UID == vsc.Spec.VolumeSnapshotRef.UID, nil
 }
