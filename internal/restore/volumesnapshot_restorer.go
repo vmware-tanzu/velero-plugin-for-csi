@@ -61,16 +61,12 @@ func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vele
 		return &velero.RestoreItemActionExecuteOutput{}, errors.Wrapf(err, "failed to convert input.Item from unstructured")
 	}
 
-	labels := vs.Labels
-	if labels == nil {
-		labels = make(map[string]string)
-	}
-	snapHandle, exists := labels[util.VolumeSnapshotHandleLabel]
+	snapHandle, exists := vs.Annotations[util.VolumeSnapshotHandleLabel]
 	if !exists {
 		return nil, errors.Errorf("Volumesnapshot %s/%s does not have a %s label", vs.Namespace, vs.Name, util.VolumeSnapshotHandleLabel)
 	}
 
-	csiDriverName, exists := labels[util.CSIDriverNameLabel]
+	csiDriverName, exists := vs.Annotations[util.CSIDriverNameLabel]
 	if !exists {
 		return nil, errors.Errorf("Volumesnapshot %s/%s does not have a %s label", vs.Namespace, vs.Name, util.CSIDriverNameLabel)
 	}

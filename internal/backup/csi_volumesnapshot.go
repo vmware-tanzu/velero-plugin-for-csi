@@ -45,17 +45,13 @@ func (p *VolumeSnapshotBackupItemAction) AppliesTo() (velero.ResourceSelector, e
 	}, nil
 }
 
-func setVolumeSnapshotAnnotationsAndLabels(vs *snapshotv1beta1api.VolumeSnapshot, vals map[string]string) {
+func setVolumeSnapshotAnnotations(vs *snapshotv1beta1api.VolumeSnapshot, vals map[string]string) {
 	if vs.Annotations == nil {
 		vs.Annotations = make(map[string]string)
-	}
-	if vs.Labels == nil {
-		vs.Labels = make(map[string]string)
 	}
 
 	for k, v := range vals {
 		vs.Annotations[k] = v
-		vs.Labels[k] = v
 	}
 }
 
@@ -81,8 +77,7 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 	}
 
 	// Capture storage provider snapshot handle and CSI driver name
-	// these  values will be used on restore to create a static volumesnapshotcontent that will be used as
-	// source of the volumesnapshot.
+	// to be used on restore to create a static volumesnapshotcontent that will be the source of the volumesnapshot.
 	vals := map[string]string{
 		util.VolumeSnapshotHandleLabel: *vsc.Status.SnapshotHandle,
 		util.CSIDriverNameLabel:        vsc.Spec.Driver,
@@ -95,8 +90,8 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 		vals[util.CSIDeleteSnapshotSecretNamespace] = vsc.Annotations[util.PrefixedSnapshotterSecretNamespaceKey]
 	}
 
-	// save newly applied annotations and labels into the backed-up volumesnapshot item
-	setVolumeSnapshotAnnotationsAndLabels(&vs, vals)
+	// save newly applied annotations into the backed-up volumesnapshot item
+	setVolumeSnapshotAnnotations(&vs, vals)
 
 	vsMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vs)
 	if err != nil {
