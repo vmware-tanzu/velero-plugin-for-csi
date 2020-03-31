@@ -135,7 +135,7 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "velero-" + pvc.Name + "-",
 			Namespace:    pvc.Namespace,
-			Annotations: map[string]string{
+			Labels: map[string]string{
 				velerov1api.BackupNameLabel: backup.Name,
 			},
 		},
