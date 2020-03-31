@@ -23,10 +23,10 @@ import (
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	"github.com/vmware-tanzu/velero/pkg/kuberesource"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 )
 
@@ -59,7 +59,8 @@ func setVolumeSnapshotAnnotationsAndLabels(vs *snapshotv1beta1api.VolumeSnapshot
 	}
 }
 
-// Execute backs VolumeSnapshotContents associated with the volumesnapshot as additional resource.
+// Execute backsup a CSI volumesnapshot object and captures, as labels and annotations, information from its associated volumesnapshotcontents such as CSI driver name, storage snapshot handle
+// and namespace and name of the snapshot delete secret, if any. It returns the volumesnapshotclass and the volumesnapshotcontents as additional items to be backed up.
 func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
 	p.Log.Infof("Executing VolumeSnapshotBackupItemAction")
 
@@ -72,44 +73,45 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
 	}
+
 	p.Log.Infof("Getting VolumesnapshotContent for Volumesnapshot %s/%s", vs.Namespace, vs.Name)
 	vsc, err := util.GetVolumeSnapshotContentForVolumeSnapshot(&vs, snapshotClient.SnapshotV1beta1(), p.Log)
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
 	}
 
+	// Capture storage provider snapshot handle and CSI driver name
+	// these  values will be used on restore to create a static volumesnapshotcontent that will be used as
+	// source of the volumesnapshot.
 	vals := map[string]string{
 		util.VolumeSnapshotHandleLabel: *vsc.Status.SnapshotHandle,
 		util.CSIDriverNameLabel:        vsc.Spec.Driver,
 	}
 
-	additionalItems := []velero.ResourceIdentifier{}
-
 	// Capture the vsc's deletesnapshot secret annotations into the backup of the volumesnapshot
+	// these annotations will be set on the static volumesnapshotcontent that will be created on restore.
 	if util.IsVolumeSnapshotContentHasDeleteSecret(vsc) {
-		deleteSnapshotSecretName := vsc.Annotations[util.PrefixedSnapshotterSecretNameKey]
-		deleteSnapshotSecretNamespace := vsc.Annotations[util.PrefixedSnapshotterSecretNamespaceKey]
-		// TODO: add GroupResource for secret into kuberesource
-		additionalItems = append(additionalItems, velero.ResourceIdentifier{
-			GroupResource: schema.GroupResource{Group: "", Resource: "secrets"},
-			Name:          deleteSnapshotSecretName,
-			Namespace:     deleteSnapshotSecretNamespace,
-		})
-
-		vals[util.CSIDeleteSnapshotSecretName] = deleteSnapshotSecretName
-		vals[util.CSIDeleteSnapshotSecretNamespace] = deleteSnapshotSecretNamespace
-
-		p.Log.Infof("Found DeleteSnapshotSecret %s/%s on volumesnapshotcontent %s from its annotation", deleteSnapshotSecretNamespace, deleteSnapshotSecretName, vsc.Name)
-	} else {
-		p.Log.Infof("Volumesnapshotcontent %s does not have a deletesnapshot secret annotation", vsc.Name)
+		vals[util.CSIDeleteSnapshotSecretName] = vsc.Annotations[util.PrefixedSnapshotterSecretNameKey]
+		vals[util.CSIDeleteSnapshotSecretNamespace] = vsc.Annotations[util.PrefixedSnapshotterSecretNamespaceKey]
 	}
 
-	// save newly applied annotations and labels into the backed-up volumesnapshot
+	// save newly applied annotations and labels into the backed-up volumesnapshot item
 	setVolumeSnapshotAnnotationsAndLabels(&vs, vals)
 
 	vsMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vs)
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
+	}
+
+	additionalItems := []velero.ResourceIdentifier{
+		{
+			GroupResource: kuberesource.VolumeSnapshotClasses,
+			Name:          *vs.Spec.VolumeSnapshotClassName,
+		},
+		{
+			GroupResource: kuberesource.VolumeSnapshotContents,
+			Name:          vsc.Name,
+		},
 	}
 	p.Log.Infof("Returning %d additionalItems to backup", len(additionalItems))
 	for _, ai := range additionalItems {

@@ -31,7 +31,7 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 )
 
-// VSRestorer is a restore item action for VolumeSnapshots
+// VSRestorer is a Velero restore item action plugin for VolumeSnapshots
 type VSRestorer struct {
 	Log logrus.FieldLogger
 }
@@ -51,9 +51,8 @@ func resetVolumeSnapshotSpecForRestore(vs *snapshotv1beta1api.VolumeSnapshot, vs
 	vs.Spec.Source.VolumeSnapshotContentName = vscName
 }
 
-// Execute modifies the VolumeSnapshot's spec to set its data source to be the relevant VolumeSnapshotContent object,
-// rather than the original PVC the snapshot was created from, so it can be statically re-bound to the
-// volumesnapshotcontent on restore
+// Execute uses the data such as CSI driver name, storage snapshot handle, snapshot deletion secret (if any) from the annotations
+// to recreate a volumesnapshotcontent object and statically bind the Volumesnapshot object being restored.
 func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
 	p.Log.Info("Starting VSRestorerAction")
 	var vs snapshotv1beta1api.VolumeSnapshot
@@ -70,7 +69,7 @@ func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vele
 	if !exists {
 		return nil, errors.Errorf("Volumesnapshot %s/%s does not have a %s label", vs.Namespace, vs.Name, util.VolumeSnapshotHandleLabel)
 	}
-	// TODO: refactor to reduce copy-pasta
+
 	csiDriverName, exists := labels[util.CSIDriverNameLabel]
 	if !exists {
 		return nil, errors.Errorf("Volumesnapshot %s/%s does not have a %s label", vs.Namespace, vs.Name, util.CSIDriverNameLabel)
@@ -108,15 +107,20 @@ func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vele
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	// we create the volumesnapshotcontent here instead of relying on the restore flow because we want to statically
+	// bind this volumesnapshot with a volumesnapshotcontent that will be used as its source for pre-populating the
+	// volume that will be created as a result of the restore. To perform this static binding, a bi-didrectional link
+	// between the volumesnapshotcontent and volumesnapshot objects have to be setup.
+	// Further, it is disallowed to convert a dynamically created volumesnapshotcontent for static binding.
+	// See: https://github.com/kubernetes-csi/external-snapshotter/issues/274
 	vscupd, err := snapClient.SnapshotV1beta1().VolumeSnapshotContents().Create(&vsc)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create volumesnapshotcontents %s", vsc.GenerateName)
 	}
 	p.Log.Infof("Created VolumesnapshotContents %s with static binding to volumesnapshot %s/%s", vscupd, vs.Namespace, vs.Name)
 
-	// Reset Spec to convert the dynamic snapshot to a static one.
+	// Reset Spec to convert the volumesnapshot from using the dyanamic volumesnapshotcontent to the static one.
 	resetVolumeSnapshotSpecForRestore(&vs, &vscupd.Name)
-	p.Log.Infof("VS Info: Source: snapHandle: %s, pvc==nil? %t", *vs.Spec.Source.VolumeSnapshotContentName, vs.Spec.Source.PersistentVolumeClaimName == nil)
 
 	vsMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vs)
 	if err != nil {
