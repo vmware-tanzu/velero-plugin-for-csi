@@ -44,7 +44,7 @@ func (p *VolumeSnapshotContentBackupItemAction) AppliesTo() (velero.ResourceSele
 	}, nil
 }
 
-// Execute backs VolumeSnapshotContents that are not associated with a volumesnapshot object.
+// Execute backs up only those VolumeSnapshotContents that are not bound with any volumesnapshot object.
 func (p *VolumeSnapshotContentBackupItemAction) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
 	p.Log.Infof("Executing VolumeSnapshotContentBackupItemAction")
 
@@ -63,26 +63,37 @@ func (p *VolumeSnapshotContentBackupItemAction) Execute(item runtime.Unstructure
 		return nil, nil, errors.Wrapf(err, "failed to verify volumesnapshot ref in volumesnapshot %s", vsc.Name)
 	}
 
-	// Add volumesnapshot to the backup only if it is not bound to an existing volumesnapshot
-	if !bound {
-		additionalItems := []velero.ResourceIdentifier{}
-		if util.IsVolumeSnapshotContentHasDeleteSecret(&vsc) {
-			deleteSnapshotSecretName := vsc.Annotations[util.PrefixedSnapshotterSecretNameKey]
-			deleteSnapshotSecretNamespace := vsc.Annotations[util.PrefixedSnapshotterSecretNamespaceKey]
-			// TODO: add GroupResource for secret into kuberesource
-			additionalItems = append(additionalItems, velero.ResourceIdentifier{
-				GroupResource: schema.GroupResource{Group: "", Resource: "secrets"},
-				Name:          deleteSnapshotSecretName,
-				Namespace:     deleteSnapshotSecretNamespace,
-			})
-			p.Log.Infof("Found DeleteSnapshotSecret %s/%s on volumesnapshotcontent %s from its annotation", deleteSnapshotSecretNamespace, deleteSnapshotSecretName, vsc.Name)
-		}
-		p.Log.Infof("Returning %d additionalItems to backup", len(additionalItems))
-		for _, ai := range additionalItems {
-			p.Log.Debugf("%s: %s", ai.GroupResource.String(), ai.Name)
-		}
+	additionalItems := []velero.ResourceIdentifier{}
 
-		return item, additionalItems, nil
+	// we should backup the snapshot deletion secrets that may be referenced in the volumesnapshotcontent's annotation
+	if util.IsVolumeSnapshotContentHasDeleteSecret(&vsc) {
+		deleteSnapshotSecretName := vsc.Annotations[util.PrefixedSnapshotterSecretNameKey]
+		deleteSnapshotSecretNamespace := vsc.Annotations[util.PrefixedSnapshotterSecretNamespaceKey]
+		// TODO: add GroupResource for secret into kuberesource
+		additionalItems = append(additionalItems, velero.ResourceIdentifier{
+			GroupResource: schema.GroupResource{Group: "", Resource: "secrets"},
+			Name:          deleteSnapshotSecretName,
+			Namespace:     deleteSnapshotSecretNamespace,
+		})
+		p.Log.Infof("Found DeleteSnapshotSecret %s/%s on volumesnapshotcontent %s from its annotation", deleteSnapshotSecretNamespace, deleteSnapshotSecretName, vsc.Name)
+	} else {
+		p.Log.Infof("Volumesnapshotcontent %s does not have a deletesnapshot secret annotation", vsc.Name)
 	}
-	return nil, nil, nil
+
+	// volumesnapshotcontents that are not bound to a volumesnapshot exist in the cluster because their DeletionPolicy was set to Retain.
+	// this means they still hold reference to a storage provider snapshot which will no longer be discoverable in the cluster if this volumesnapshotcontent
+	// is not backed up.
+	retItem := item
+
+	if bound {
+		// volumesnapshotcontents that are bound to a volumesnapshot object will not be explicitly backed up
+		// they will be backed up in the process of backing up the volumesnapshot objects that they are bound to
+		retItem = nil
+	}
+
+	p.Log.Infof("Returning %d additionalItems to backup", len(additionalItems))
+	for _, ai := range additionalItems {
+		p.Log.Debugf("%s: %s", ai.GroupResource.String(), ai.Name)
+	}
+	return retItem, additionalItems, nil
 }
