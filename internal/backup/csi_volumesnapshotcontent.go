@@ -53,16 +53,6 @@ func (p *VolumeSnapshotContentBackupItemAction) Execute(item runtime.Unstructure
 		return nil, nil, errors.WithStack(err)
 	}
 
-	_, snapshotClient, err := util.GetClients()
-	if err != nil {
-		return nil, nil, errors.WithStack(err)
-	}
-
-	bound, err := util.IsVolumeSnapshotContentBound(&vsc, snapshotClient.SnapshotV1beta1())
-	if err != nil {
-		return nil, nil, errors.Wrapf(err, "failed to verify volumesnapshot ref in volumesnapshot %s", vsc.Name)
-	}
-
 	additionalItems := []velero.ResourceIdentifier{}
 
 	// we should backup the snapshot deletion secrets that may be referenced in the volumesnapshotcontent's annotation
@@ -80,20 +70,9 @@ func (p *VolumeSnapshotContentBackupItemAction) Execute(item runtime.Unstructure
 		p.Log.Infof("Volumesnapshotcontent %s does not have a deletesnapshot secret annotation", vsc.Name)
 	}
 
-	// volumesnapshotcontents that are not bound to a volumesnapshot exist in the cluster because their DeletionPolicy was set to Retain.
-	// this means they still hold reference to a storage provider snapshot which will no longer be discoverable in the cluster if this volumesnapshotcontent
-	// is not backed up.
-	retItem := item
-
-	if bound {
-		// volumesnapshotcontents that are bound to a volumesnapshot object will not be explicitly backed up
-		// they will be backed up in the process of backing up the volumesnapshot objects that they are bound to
-		retItem = nil
-	}
-
 	p.Log.Infof("Returning %d additionalItems to backup", len(additionalItems))
 	for _, ai := range additionalItems {
 		p.Log.Debugf("%s: %s", ai.GroupResource.String(), ai.Name)
 	}
-	return retItem, additionalItems, nil
+	return item, additionalItems, nil
 }
