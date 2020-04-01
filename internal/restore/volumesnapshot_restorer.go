@@ -25,6 +25,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
@@ -93,10 +94,18 @@ func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vele
 		},
 	}
 
+	additionalItems := []velero.ResourceIdentifier{}
+
 	// Set Delete snapshot secret annotations if it was present during backup of the dynamic volumesnapshot
 	if util.IsVolumeSnapshotHasVSCDeleteSecret(&vs) {
 		vsc.Annotations[util.PrefixedSnapshotterSecretNameKey] = vs.Annotations[util.CSIDeleteSnapshotSecretName]
 		vsc.Annotations[util.PrefixedSnapshotterSecretNamespaceKey] = vs.Annotations[util.CSIDeleteSnapshotSecretNamespace]
+		additionalItems = append(additionalItems,
+			velero.ResourceIdentifier{
+				GroupResource: schema.GroupResource{Group: "", Resource: "secrets"},
+				Name:          vs.Annotations[util.CSIDeleteSnapshotSecretName],
+				Namespace:     vs.Annotations[util.CSIDeleteSnapshotSecretNamespace],
+			})
 	}
 
 	_, snapClient, err := util.GetClients()
@@ -123,9 +132,10 @@ func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vele
 		return nil, errors.WithStack(err)
 	}
 
-	p.Log.Info("Returning from VSRestorerAction")
+	p.Log.Infof("Returning from VSRestorerAction with %d additionalItems", len(additionalItems))
 
 	return &velero.RestoreItemActionExecuteOutput{
-		UpdatedItem: &unstructured.Unstructured{Object: vsMap},
+		UpdatedItem:     &unstructured.Unstructured{Object: vsMap},
+		AdditionalItems: additionalItems,
 	}, nil
 }
