@@ -194,42 +194,37 @@ func GetClients() (*kubernetes.Clientset, *snapshotterClientSet.Clientset, error
 
 // IsVolumeSnapshotClassHasListerSecret returns whether a volumesnapshotclass has a snapshotlister secret
 func IsVolumeSnapshotClassHasListerSecret(vc *snapshotv1beta1api.VolumeSnapshotClass) bool {
-	nameExists := false
-	nsExists := false
-
 	// https://github.com/kubernetes-csi/external-snapshotter/blob/master/pkg/utils/util.go#L59-L60
 	// There is no release w/ these constants exported. Using the strings for now.
-	if vc.Annotations != nil {
-		_, nameExists = vc.Annotations[PrefixedSnapshotterListSecretNameKey]
-		_, nsExists = vc.Annotations[PrefixedSnapshotterListSecretNamespaceKey]
-
-	}
+	_, nameExists := vc.Annotations[PrefixedSnapshotterListSecretNameKey]
+	_, nsExists := vc.Annotations[PrefixedSnapshotterListSecretNamespaceKey]
 	return nameExists && nsExists
 }
 
 // IsVolumeSnapshotContentHasDeleteSecret returns whether a volumesnapshotcontent has a deletesnapshot secret
 func IsVolumeSnapshotContentHasDeleteSecret(vsc *snapshotv1beta1api.VolumeSnapshotContent) bool {
-	nameExists := false
-	nsExists := false
-
 	// https://github.com/kubernetes-csi/external-snapshotter/blob/master/pkg/utils/util.go#L56-L57
 	// use exported constants in the next release
-	if vsc.Annotations != nil {
-		_, nameExists = vsc.Annotations[PrefixedSnapshotterSecretNameKey]
-		_, nsExists = vsc.Annotations[PrefixedSnapshotterSecretNamespaceKey]
-	}
+	_, nameExists := vsc.Annotations[PrefixedSnapshotterSecretNameKey]
+	_, nsExists := vsc.Annotations[PrefixedSnapshotterSecretNamespaceKey]
 	return nameExists && nsExists
 }
 
 // IsVolumeSnapshotHasVSCDeleteSecret returns whether a volumesnapshot should set the deletesnapshot secret
 // for the static volumesnapshotcontent that is created on restore
 func IsVolumeSnapshotHasVSCDeleteSecret(vs *snapshotv1beta1api.VolumeSnapshot) bool {
-	nameExists := false
-	nsExists := false
-	if vs.Annotations != nil {
-		_, nameExists = vs.Annotations[CSIDeleteSnapshotSecretName]
-		_, nsExists = vs.Annotations[CSIDeleteSnapshotSecretNamespace]
+	_, nameExists := vs.Annotations[CSIDeleteSnapshotSecretName]
+	_, nsExists := vs.Annotations[CSIDeleteSnapshotSecretNamespace]
+	return nameExists && nsExists
+}
+
+// AddAnnotations adds the supplied key-values to the annotations on the object
+func AddAnnotations(o *metav1.ObjectMeta, vals map[string]string) {
+	if o.Annotations == nil {
+		o.Annotations = make(map[string]string)
 	}
 
-	return nameExists && nsExists
+	for k, v := range vals {
+		o.Annotations[k] = v
+	}
 }

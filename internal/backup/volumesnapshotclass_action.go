@@ -42,7 +42,7 @@ func (p *VolumeSnapshotClassBackupItemAction) AppliesTo() (velero.ResourceSelect
 	}, nil
 }
 
-// Execute backsup a VolumeSnapshotClass object and returns as additional items any snapshot lister secret that may be referenced in its annotations.
+// Execute backs up a VolumeSnapshotClass object and returns as additional items any snapshot lister secret that may be referenced in its annotations.
 func (p *VolumeSnapshotClassBackupItemAction) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
 	p.Log.Infof("Executing VolumeSnapshotClassBackupItemAction")
 

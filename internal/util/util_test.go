@@ -1111,3 +1111,66 @@ func TestIsVolumeSnapshotHasVSCDeleteSecret(t *testing.T) {
 		})
 	}
 }
+
+func TestSetAnnotations(t *testing.T) {
+	annotationValues := map[string]string{
+		"k1": "v1",
+		"k2": "v2",
+		"k3": "v3",
+		"k4": "v4",
+		"k5": "v5",
+	}
+	testCases := []struct {
+		name  string
+		o     metav1.ObjectMeta
+		toAdd map[string]string
+	}{
+		{
+			name: "should create a new annotation map when annotation is nil",
+			o: metav1.ObjectMeta{
+				Annotations: nil,
+			},
+			toAdd: annotationValues,
+		},
+		{
+			name: "should add all supplied annotations into empty annotation",
+			o: metav1.ObjectMeta{
+				Annotations: map[string]string{},
+			},
+			toAdd: annotationValues,
+		},
+		{
+			name: "should add all supplied annotations to existing annotation",
+			o: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					"k100": "v100",
+					"k200": "v200",
+					"k300": "v300",
+				},
+			},
+			toAdd: annotationValues,
+		},
+		{
+			name: "should overwrite some existing annotations",
+			o: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					"k100": "v100",
+					"k2":   "v200",
+					"k300": "v300",
+				},
+			},
+			toAdd: annotationValues,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			AddAnnotations(&tc.o, tc.toAdd)
+			for k, v := range tc.toAdd {
+				actual, exists := tc.o.Annotations[k]
+				assert.True(t, exists)
+				assert.Equal(t, v, actual)
+			}
+		})
+	}
+}

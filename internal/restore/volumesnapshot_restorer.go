@@ -61,14 +61,14 @@ func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vele
 		return &velero.RestoreItemActionExecuteOutput{}, errors.Wrapf(err, "failed to convert input.Item from unstructured")
 	}
 
-	snapHandle, exists := vs.Annotations[util.VolumeSnapshotHandleLabel]
+	snapHandle, exists := vs.Annotations[util.VolumeSnapshotHandleAnnotation]
 	if !exists {
-		return nil, errors.Errorf("Volumesnapshot %s/%s does not have a %s label", vs.Namespace, vs.Name, util.VolumeSnapshotHandleLabel)
+		return nil, errors.Errorf("Volumesnapshot %s/%s does not have a %s annotation", vs.Namespace, vs.Name, util.VolumeSnapshotHandleAnnotation)
 	}
 
-	csiDriverName, exists := vs.Annotations[util.CSIDriverNameLabel]
+	csiDriverName, exists := vs.Annotations[util.CSIDriverNameAnnotation]
 	if !exists {
-		return nil, errors.Errorf("Volumesnapshot %s/%s does not have a %s label", vs.Namespace, vs.Name, util.CSIDriverNameLabel)
+		return nil, errors.Errorf("Volumesnapshot %s/%s does not have a %s annotation", vs.Namespace, vs.Name, util.CSIDriverNameAnnotation)
 	}
 
 	// TODO: generated name will be like velero-velero-something. Fix that.
