@@ -83,13 +83,6 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 		util.CSIDriverNameLabel:        vsc.Spec.Driver,
 	}
 
-	// Capture the vsc's deletesnapshot secret annotations into the backup of the volumesnapshot
-	// these annotations will be set on the static volumesnapshotcontent that will be created on restore.
-	if util.IsVolumeSnapshotContentHasDeleteSecret(vsc) {
-		vals[util.CSIDeleteSnapshotSecretName] = vsc.Annotations[util.PrefixedSnapshotterSecretNameKey]
-		vals[util.CSIDeleteSnapshotSecretNamespace] = vsc.Annotations[util.PrefixedSnapshotterSecretNamespaceKey]
-	}
-
 	// save newly applied annotations into the backed-up volumesnapshot item
 	setVolumeSnapshotAnnotations(&vs, vals)
 

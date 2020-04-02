@@ -22,9 +22,7 @@ import (
 
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 )
@@ -54,21 +52,6 @@ func (p *VolumeSnapshotClassBackupItemAction) Execute(item runtime.Unstructured,
 	}
 
 	additionalItems := []velero.ResourceIdentifier{}
-
-	if util.IsVolumeSnapshotClassHasListerSecret(&vsc) {
-		listerSecretName := vsc.Annotations[util.PrefixedSnapshotterListSecretNameKey]
-		listerSecretNamespace := vsc.Annotations[util.PrefixedSnapshotterListSecretNamespaceKey]
-		additionalItems = append(additionalItems,
-			velero.ResourceIdentifier{
-				GroupResource: schema.GroupResource{Group: "", Resource: "secrets"},
-				Name:          listerSecretName,
-				Namespace:     listerSecretNamespace,
-			},
-		)
-		p.Log.Infof("Found SnapshotLister secret %s/%s from volumesnapshotclass %s annotation", listerSecretNamespace, listerSecretName, vsc.Name)
-	} else {
-		p.Log.Infof("VolumesnapshotClass %s does not have a snapshot lister secret annotation", vsc.Name)
-	}
 
 	p.Log.Infof("Returning %d additionalItems to backup", len(additionalItems))
 	for _, ai := range additionalItems {
