@@ -22,9 +22,7 @@ import (
 
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 )
 
@@ -52,15 +50,7 @@ func (p *VolumeSnapshotClassRestoreItemAction) Execute(input *velero.RestoreItem
 	}
 
 	additionalItems := []velero.ResourceIdentifier{}
-	if util.IsVolumeSnapshotClassHasListerSecret(&snapClass) {
-		// snapshot lister secrets are referenced in the annotations of the object to be restored
-		// add the secret as an additional resource to be restored
-		additionalItems = append(additionalItems, velero.ResourceIdentifier{
-			GroupResource: schema.GroupResource{Group: "", Resource: "secrets"},
-			Name:          snapClass.Annotations[util.PrefixedSnapshotterListSecretNameKey],
-			Namespace:     snapClass.Annotations[util.PrefixedSnapshotterListSecretNamespaceKey],
-		})
-	}
+	// TODO: place holder for returning snapshot lister secret as additional items
 
 	p.Log.Infof("Returning from VolumeSnapshotClassRestoreItemAction with %d additionalItems", len(additionalItems))
 
