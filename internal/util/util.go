@@ -135,17 +135,30 @@ func GetVolumeSnapshotClassForStorageClass(provisioner string, snapshotClient sn
 }
 
 // GetVolumeSnapshotContentForVolumeSnapshot returns the volumesnapshotcontent object associated with the volumesnapshot
-func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1beta1api.VolumeSnapshot, snapshotClient snapshotter.SnapshotV1beta1Interface, log logrus.FieldLogger) (*snapshotv1beta1api.VolumeSnapshotContent, error) {
+func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1beta1api.VolumeSnapshot, snapshotClient snapshotter.SnapshotV1beta1Interface, log logrus.FieldLogger, wait bool) (*snapshotv1beta1api.VolumeSnapshotContent, error) {
 	var snapshotContent *snapshotv1beta1api.VolumeSnapshotContent
+	success := false
+	runningRetry := false
 	for {
+		waitMsg := ""
+		if runningRetry && !wait {
+			success = false
+			break
+		}
+		if runningRetry {
+			log.Info(waitMsg)
+			time.Sleep(5 * time.Second)
+		}
+		// at this point the next iteraion of this loop will always be a retry
+		runningRetry = true
+
 		vs, err := snapshotClient.VolumeSnapshots(volSnap.Namespace).Get(volSnap.Name, metav1.GetOptions{})
 		if err != nil {
 			return nil, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshot %s/%s", volSnap.Namespace, volSnap.Name))
 		}
 		// TODO: add timeout
 		if vs.Status == nil || vs.Status.BoundVolumeSnapshotContentName == nil {
-			log.Infof("Waiting for CSI driver to reconcile volumesnapshot %s/%s. Retrying in 5s", volSnap.Namespace, volSnap.Name)
-			time.Sleep(5 * time.Second)
+			waitMsg = fmt.Sprintf("Waiting for CSI driver to reconcile volumesnapshot %s/%s. Retrying in 5s", volSnap.Namespace, volSnap.Name)
 			continue
 		}
 
@@ -159,12 +172,17 @@ func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1beta1api.Volum
 		// bound to the existing snapshot.
 		// TODO: add timeout
 		if snapshotContent.Status == nil || snapshotContent.Status.SnapshotHandle == nil {
-			log.Infof("Waiting for volumesnapshotcontents %s to have snapshot handle. Retrying in 5s", snapshotContent.Name)
-			time.Sleep(5 * time.Second)
+			waitMsg = fmt.Sprintf("Waiting for volumesnapshotcontents %s to have snapshot handle. Retrying in 5s", snapshotContent.Name)
 			continue
 		}
 
+		// we've successfully found the volumesnapshotcontent we were looking for
+		success = true
 		break
+	}
+
+	if !success {
+		return nil, errors.Errorf("failed to get volumesnapshotcontent for volumesnapshot %s/%s without waiting for reconciliation", volSnap.Namespace, volSnap.Name)
 	}
 
 	return snapshotContent, nil

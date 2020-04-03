@@ -60,8 +60,18 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 		return nil, nil, errors.WithStack(err)
 	}
 
+	// determine if we are backing up a volumesnapshot that was created by velero while performing backup of a
+	// CSI backed PVC.
+	// For volumesnapshots that were created during the backup of a CSI backed PVC, we will wait for the volumecontents to
+	// be available.
+	// For volumesnapshots created outside of velero, we expect the volumesnapshotcontent to be available prior to backing up
+	// the volumesnapshot. In case of a failure, backup should be re-attempted after the CSI driver has reconciled the volumesnapshot.
+	// existence of the velerov1api.BackupNameLabel indicates that the volumesnapshot was created while backing up a
+	// CSI backed PVC.
+	_, toWait := vs.Labels[velerov1api.BackupNameLabel]
+
 	p.Log.Infof("Getting VolumesnapshotContent for Volumesnapshot %s/%s", vs.Namespace, vs.Name)
-	vsc, err := util.GetVolumeSnapshotContentForVolumeSnapshot(&vs, snapshotClient.SnapshotV1beta1(), p.Log)
+	vsc, err := util.GetVolumeSnapshotContentForVolumeSnapshot(&vs, snapshotClient.SnapshotV1beta1(), p.Log, toWait)
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
 	}

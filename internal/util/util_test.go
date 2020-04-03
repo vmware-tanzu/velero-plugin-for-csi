@@ -791,7 +791,6 @@ func TestGetVolumeSnapshotContentForVolumeSnapshot(t *testing.T) {
 			SnapshotHandle: &snapshotHandle,
 		},
 	}
-
 	validVS := &snapshotv1beta1api.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "vs",
@@ -813,31 +812,142 @@ func TestGetVolumeSnapshotContentForVolumeSnapshot(t *testing.T) {
 		},
 	}
 
-	objs := []runtime.Object{vscObj, validVS, vsWithVSCNotFound}
+	vsWithNilStatus := &snapshotv1beta1api.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "nil-status-vs",
+			Namespace: "default",
+		},
+		Status: nil,
+	}
+	vsWithNilStatusField := &snapshotv1beta1api.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "nil-status-field-vs",
+			Namespace: "default",
+		},
+		Status: &snapshotv1beta1api.VolumeSnapshotStatus{
+			BoundVolumeSnapshotContentName: nil,
+		},
+	}
+
+	nilStatusVsc := "nil-status-vsc"
+	vscWithNilStatus := &snapshotv1beta1api.VolumeSnapshotContent{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: nilStatusVsc,
+		},
+		Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{
+			VolumeSnapshotRef: corev1api.ObjectReference{
+				Name:       "vol-snap-1",
+				APIVersion: snapshotv1beta1api.SchemeGroupVersion.String(),
+			},
+		},
+		Status: nil,
+	}
+	vsForNilStatusVsc := &snapshotv1beta1api.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vs-for-nil-status-vsc",
+			Namespace: "default",
+		},
+		Status: &snapshotv1beta1api.VolumeSnapshotStatus{
+			BoundVolumeSnapshotContentName: &nilStatusVsc,
+		},
+	}
+
+	nilStatusFieldVsc := "nil-status-field-vsc"
+	vscWithNilStatusField := &snapshotv1beta1api.VolumeSnapshotContent{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: nilStatusFieldVsc,
+		},
+		Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{
+			VolumeSnapshotRef: corev1api.ObjectReference{
+				Name:       "vol-snap-1",
+				APIVersion: snapshotv1beta1api.SchemeGroupVersion.String(),
+			},
+		},
+		Status: &snapshotv1beta1api.VolumeSnapshotContentStatus{
+			SnapshotHandle: nil,
+		},
+	}
+	vsForNilStatusFieldVsc := &snapshotv1beta1api.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vs-for-nil-status-field",
+			Namespace: "default",
+		},
+		Status: &snapshotv1beta1api.VolumeSnapshotStatus{
+			BoundVolumeSnapshotContentName: &nilStatusFieldVsc,
+		},
+	}
+
+	objs := []runtime.Object{vscObj, validVS, vsWithVSCNotFound, vsWithNilStatus, vsWithNilStatusField, vscWithNilStatus, vsForNilStatusVsc, vscWithNilStatusField, vsForNilStatusFieldVsc}
 	fakeClient := snapshotFake.NewSimpleClientset(objs...)
 	testCases := []struct {
 		name        string
 		volSnap     *snapshotv1beta1api.VolumeSnapshot
 		exepctedVSC *snapshotv1beta1api.VolumeSnapshotContent
+		wait        bool
 		expectError bool
 	}{
 		{
-			name:        "should find volumesnapshotcontent for volumesnapshot",
+			name:        "waitEnabled should find volumesnapshotcontent for volumesnapshot",
 			volSnap:     validVS,
 			exepctedVSC: vscObj,
+			wait:        true,
 			expectError: false,
 		},
 		{
-			name:        "should not find volumesnapshotcontent for volumesnapshot with non-existing snapshotcontent name in status.BoundVolumeSnapshotContentName",
+			name:        "waitEnabled should not find volumesnapshotcontent for volumesnapshot with non-existing snapshotcontent name in status.BoundVolumeSnapshotContentName",
 			volSnap:     vsWithVSCNotFound,
 			exepctedVSC: nil,
+			wait:        true,
 			expectError: true,
+		},
+		{
+			name:        "waitEnabled should not find volumesnapshotcontent for a non-existent volumesnapshot",
+			wait:        true,
+			exepctedVSC: nil,
+			expectError: true,
+			volSnap: &snapshotv1beta1api.VolumeSnapshot{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "does-not-exist",
+					Namespace: "default",
+				},
+				Status: &snapshotv1beta1api.VolumeSnapshotStatus{
+					BoundVolumeSnapshotContentName: &nilStatusVsc,
+				},
+			},
+		},
+		{
+			name:        "waitDisabled should not find volumesnapshotcontent volumesnapshot status is nil",
+			wait:        false,
+			expectError: true,
+			exepctedVSC: nil,
+			volSnap:     vsWithNilStatus,
+		},
+		{
+			name:        "waitDisabled should not find volumesnapshotcontent volumesnapshot status.BoundVolumeSnapshotContentName is nil",
+			wait:        false,
+			expectError: true,
+			exepctedVSC: nil,
+			volSnap:     vsWithNilStatusField,
+		},
+		{
+			name:        "waitDisabled should not find volumesnapshotcontent volumesnapshotcontent status is nil",
+			wait:        false,
+			expectError: true,
+			exepctedVSC: nil,
+			volSnap:     vsForNilStatusVsc,
+		},
+		{
+			name:        "waitDisabled should not find volumesnapshotcontent volumesnapshotcontent status.SnapshotHandle is nil",
+			wait:        false,
+			expectError: true,
+			exepctedVSC: nil,
+			volSnap:     vsForNilStatusFieldVsc,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualVSC, actualError := GetVolumeSnapshotContentForVolumeSnapshot(tc.volSnap, fakeClient.SnapshotV1beta1(), logrus.New().WithField("fake", "test"))
+			actualVSC, actualError := GetVolumeSnapshotContentForVolumeSnapshot(tc.volSnap, fakeClient.SnapshotV1beta1(), logrus.New().WithField("fake", "test"), tc.wait)
 			if tc.expectError && actualError == nil {
 				assert.NotNil(t, actualError)
 				assert.Nil(t, actualVSC)
