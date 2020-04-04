@@ -50,20 +50,6 @@ func (p *CSISnapshotter) AppliesTo() (velero.ResourceSelector, error) {
 	}, nil
 }
 
-func setPVCAnnotationsAndLabels(pvc *corev1api.PersistentVolumeClaim, snapshotName, backupName string) {
-	if pvc.Annotations == nil {
-		pvc.Annotations = make(map[string]string)
-	}
-
-	pvc.Annotations[util.VolumeSnapshotLabel] = snapshotName
-	pvc.Annotations[velerov1api.BackupNameLabel] = backupName
-
-	if pvc.Labels == nil {
-		pvc.Labels = make(map[string]string)
-	}
-	pvc.Labels[util.VolumeSnapshotLabel] = snapshotName
-}
-
 // Execute recognizes PVCs backed by volumes provisioned by CSI drivers with volumesnapshotting capability and creates snapshots of the
 // underlying PVs by creating volumesnapshot CSI API objects that will trigger the CSI driver to perform the snapshot operation on the volume.
 func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
@@ -153,7 +139,12 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.
 	}
 	p.Log.Infof("Created volumesnapshot %s", fmt.Sprintf("%s/%s", upd.Namespace, upd.Name))
 
-	setPVCAnnotationsAndLabels(&pvc, upd.Name, backup.Name)
+	vals := map[string]string{
+		util.VolumeSnapshotLabel:    upd.Name,
+		velerov1api.BackupNameLabel: backup.Name,
+	}
+	util.AddAnnotations(&pvc.ObjectMeta, vals)
+	util.AddLabels(&pvc.ObjectMeta, vals)
 
 	additionalItems := []velero.ResourceIdentifier{
 		{
