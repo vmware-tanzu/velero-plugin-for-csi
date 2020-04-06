@@ -43,7 +43,7 @@ type CSISnapshotter struct {
 
 // AppliesTo returns information indicating that the CSISnapshotter action should be invoked to backup PVCs.
 func (p *CSISnapshotter) AppliesTo() (velero.ResourceSelector, error) {
-	p.Log.Info("CSISnapshotterAction AppliesTo")
+	p.Log.Debug("CSISnapshotterAction AppliesTo")
 
 	return velero.ResourceSelector{
 		IncludedResources: []string{"persistentvolumeclaims"},

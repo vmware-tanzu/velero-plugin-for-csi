@@ -21,9 +21,10 @@ import (
 	"github.com/sirupsen/logrus"
 
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 )
 
@@ -40,46 +41,30 @@ func (p *VSCRestorer) AppliesTo() (velero.ResourceSelector, error) {
 	}, nil
 }
 
-func resetVSCSpecForRestore(vsc *snapshotv1beta1api.VolumeSnapshotContent, snapshotHandle *string) {
-	// Spec of the backed-up object used the VolumeHandle as the source of the volumeSnapshotcontent.
-	// Restore operation will however, restore the volumesnapshotcontent using the snapshotHandle as the source.
-	vsc.Spec.DeletionPolicy = snapshotv1beta1api.VolumeSnapshotContentRetain
-	vsc.Spec.Source.VolumeHandle = nil
-	vsc.Spec.Source.SnapshotHandle = snapshotHandle
-	vsc.Spec.VolumeSnapshotRef.UID = ""
-	vsc.Spec.VolumeSnapshotRef.ResourceVersion = ""
-}
-
-// Execute modifies the volumesnapshotcontent's spec to use the storage provider snapshot handle as its source
-// instead of the storage provider volume handle, as in the original spec, allowing the newly provisioned volume to be
-// pre-populated with data from the volume snapshot.
+// Execute restores a volumesnapshotcontent object without modification returning the snapshot lister secret, if any, as
+// additional items to restore.
 func (p *VSCRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
 	p.Log.Info("Starting VSCRestorerAction")
-	var vsc snapshotv1beta1api.VolumeSnapshotContent
+	var snapCont snapshotv1beta1api.VolumeSnapshotContent
 
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &vsc); err != nil {
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &snapCont); err != nil {
 		return &velero.RestoreItemActionExecuteOutput{}, errors.Wrapf(err, "failed to convert input.Item from unstructured")
 	}
 
-	var vscFromBackup snapshotv1beta1api.VolumeSnapshotContent
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured((input.ItemFromBackup.UnstructuredContent()), &vscFromBackup); err != nil {
-		return &velero.RestoreItemActionExecuteOutput{}, errors.Wrapf(err, "failed to convert input.ItemFromBackup from unstructured")
+	additionalItems := []velero.ResourceIdentifier{}
+	if util.IsVolumeSnapshotContentHasDeleteSecret(&snapCont) {
+		additionalItems = append(additionalItems,
+			velero.ResourceIdentifier{
+				GroupResource: schema.GroupResource{Group: "", Resource: "secrets"},
+				Name:          snapCont.Annotations[util.CSIDeleteSnapshotSecretName],
+				Namespace:     snapCont.Annotations[util.CSIDeleteSnapshotSecretNamespace],
+			},
+		)
 	}
 
-	if vscFromBackup.Status == nil || vscFromBackup.Status.SnapshotHandle == nil {
-		return &velero.RestoreItemActionExecuteOutput{}, errors.Errorf("unable to lookup snapshotHandle from status")
-	}
-
-	resetVSCSpecForRestore(&vsc, vscFromBackup.Status.SnapshotHandle)
-
-	vscMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vsc)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	p.Log.Info("Returning from VSCRestorerAction")
-
+	p.Log.Infof("Returning from VSCRestorerAction with %d additionalItems", len(additionalItems))
 	return &velero.RestoreItemActionExecuteOutput{
-		UpdatedItem: &unstructured.Unstructured{Object: vscMap},
+		UpdatedItem:     input.Item,
+		AdditionalItems: additionalItems,
 	}, nil
 }

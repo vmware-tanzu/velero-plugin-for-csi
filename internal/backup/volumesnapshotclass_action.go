@@ -22,7 +22,9 @@ import (
 
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 )
@@ -35,7 +37,7 @@ type VolumeSnapshotClassBackupItemAction struct {
 
 // AppliesTo returns information indicating that the VolumeSnapshotClassBackupItemAction action should be invoked to backup volumesnapshotclass.
 func (p *VolumeSnapshotClassBackupItemAction) AppliesTo() (velero.ResourceSelector, error) {
-	p.Log.Info("VolumeSnapshotClassBackupItemAction AppliesTo")
+	p.Log.Debug("VolumeSnapshotClassBackupItemAction AppliesTo")
 
 	return velero.ResourceSelector{
 		IncludedResources: []string{"volumesnapshotclass.snapshot.storage.k8s.io"},
@@ -46,17 +48,20 @@ func (p *VolumeSnapshotClassBackupItemAction) AppliesTo() (velero.ResourceSelect
 func (p *VolumeSnapshotClassBackupItemAction) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
 	p.Log.Infof("Executing VolumeSnapshotClassBackupItemAction")
 
-	var vsc snapshotv1beta1api.VolumeSnapshotClass
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &vsc); err != nil {
+	var snapClass snapshotv1beta1api.VolumeSnapshotClass
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &snapClass); err != nil {
 		return nil, nil, errors.WithStack(err)
 	}
 
 	additionalItems := []velero.ResourceIdentifier{}
-
-	p.Log.Infof("Returning %d additionalItems to backup", len(additionalItems))
-	for _, ai := range additionalItems {
-		p.Log.Debugf("%s: %s", ai.GroupResource.String(), ai.Name)
+	if util.IsVolumeSnapshotClassHasListerSecret(&snapClass) {
+		additionalItems = append(additionalItems, velero.ResourceIdentifier{
+			GroupResource: schema.GroupResource{Group: "", Resource: "secrets"},
+			Name:          snapClass.Annotations[util.PrefixedSnapshotterListSecretNameKey],
+			Namespace:     snapClass.Annotations[util.PrefixedSnapshotterListSecretNamespaceKey],
+		})
 	}
 
+	p.Log.Infof("Returning %d additionalItems to backup", len(additionalItems))
 	return item, additionalItems, nil
 }
