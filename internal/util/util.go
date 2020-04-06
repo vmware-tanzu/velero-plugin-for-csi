@@ -134,6 +134,7 @@ func GetVolumeSnapshotClassForStorageClass(provisioner string, snapshotClient sn
 	return nil, errors.Errorf("failed to get volumesnapshotclass for provisioner %s", provisioner)
 }
 
+// GetVolumeSnapshotContentForVolumeSnapshot returns the volumesnapshotcontent object associated with the volumesnapshot
 func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1beta1api.VolumeSnapshot, snapshotClient snapshotter.SnapshotV1beta1Interface, log logrus.FieldLogger) (*snapshotv1beta1api.VolumeSnapshotContent, error) {
 	var snapshotContent *snapshotv1beta1api.VolumeSnapshotContent
 	for {
@@ -141,7 +142,6 @@ func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1beta1api.Volum
 		if err != nil {
 			return nil, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshot %s/%s", volSnap.Namespace, volSnap.Name))
 		}
-
 		// TODO: add timeout
 		if vs.Status == nil || vs.Status.BoundVolumeSnapshotContentName == nil {
 			log.Infof("Waiting for CSI driver to reconcile volumesnapshot %s/%s. Retrying in 5s", volSnap.Namespace, volSnap.Name)
@@ -151,7 +151,7 @@ func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1beta1api.Volum
 
 		snapshotContent, err = snapshotClient.VolumeSnapshotContents().Get(*vs.Status.BoundVolumeSnapshotContentName, metav1.GetOptions{})
 		if err != nil {
-			return nil, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotcontent %s for volumesnapshot %s/%s", *vs.Status.BoundVolumeSnapshotContentName, volSnap.Namespace, volSnap.Name))
+			return nil, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotcontent %s for volumesnapshot %s/%s", *vs.Status.BoundVolumeSnapshotContentName, vs.Namespace, vs.Name))
 		}
 
 		// we need to wait for the VolumeSnaphotContent to have a snapshot handle because during restore,
@@ -190,4 +190,41 @@ func GetClients() (*kubernetes.Clientset, *snapshotterClientSet.Clientset, error
 	}
 
 	return client, snapshotterClient, nil
+}
+
+// IsVolumeSnapshotClassHasListerSecret returns whether a volumesnapshotclass has a snapshotlister secret
+func IsVolumeSnapshotClassHasListerSecret(vc *snapshotv1beta1api.VolumeSnapshotClass) bool {
+	// https://github.com/kubernetes-csi/external-snapshotter/blob/master/pkg/utils/util.go#L59-L60
+	// There is no release w/ these constants exported. Using the strings for now.
+	_, nameExists := vc.Annotations[PrefixedSnapshotterListSecretNameKey]
+	_, nsExists := vc.Annotations[PrefixedSnapshotterListSecretNamespaceKey]
+	return nameExists && nsExists
+}
+
+// IsVolumeSnapshotContentHasDeleteSecret returns whether a volumesnapshotcontent has a deletesnapshot secret
+func IsVolumeSnapshotContentHasDeleteSecret(vsc *snapshotv1beta1api.VolumeSnapshotContent) bool {
+	// https://github.com/kubernetes-csi/external-snapshotter/blob/master/pkg/utils/util.go#L56-L57
+	// use exported constants in the next release
+	_, nameExists := vsc.Annotations[PrefixedSnapshotterSecretNameKey]
+	_, nsExists := vsc.Annotations[PrefixedSnapshotterSecretNamespaceKey]
+	return nameExists && nsExists
+}
+
+// IsVolumeSnapshotHasVSCDeleteSecret returns whether a volumesnapshot should set the deletesnapshot secret
+// for the static volumesnapshotcontent that is created on restore
+func IsVolumeSnapshotHasVSCDeleteSecret(vs *snapshotv1beta1api.VolumeSnapshot) bool {
+	_, nameExists := vs.Annotations[CSIDeleteSnapshotSecretName]
+	_, nsExists := vs.Annotations[CSIDeleteSnapshotSecretNamespace]
+	return nameExists && nsExists
+}
+
+// AddAnnotations adds the supplied key-values to the annotations on the object
+func AddAnnotations(o *metav1.ObjectMeta, vals map[string]string) {
+	if o.Annotations == nil {
+		o.Annotations = make(map[string]string)
+	}
+
+	for k, v := range vals {
+		o.Annotations[k] = v
+	}
 }

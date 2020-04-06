@@ -17,5 +17,19 @@ limitations under the License.
 package util
 
 const (
-	VolumeSnapshotLabel = "velero.io/volume-snapshot-name"
+	VolumeSnapshotLabel              = "velero.io/volume-snapshot-name"
+	VolumeSnapshotHandleAnnotation   = "velero.io/csi-volumesnapshot-handle"
+	CSIDriverNameAnnotation          = "velero.io/csi-driver-name"
+	CSIDeleteSnapshotSecretName      = "velero.io/csi-deletesnapshotsecret-name"
+	CSIDeleteSnapshotSecretNamespace = "velero.io/csi-deletesnapshotsecret-namespace"
+
+	// There is no release w/ these constants exported. Using the strings for now.
+	// CSI Labels volumesnapshotclass
+	// https://github.com/kubernetes-csi/external-snapshotter/blob/master/pkg/utils/util.go#L59-L60
+	PrefixedSnapshotterListSecretNameKey      = "csi.storage.k8s.io/snapshotter-list-secret-name"
+	PrefixedSnapshotterListSecretNamespaceKey = "csi.storage.k8s.io/snapshotter-list-secret-namespace"
+
+	// CSI Labels volumesnapshotcontents
+	PrefixedSnapshotterSecretNameKey      = "csi.storage.k8s.io/snapshotter-secret-name"
+	PrefixedSnapshotterSecretNamespaceKey = "csi.storage.k8s.io/snapshotter-secret-namespace"
 )
