@@ -60,6 +60,13 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 		return nil, nil, errors.WithStack(err)
 	}
 
+	additionalItems := []velero.ResourceIdentifier{
+		{
+			GroupResource: kuberesource.VolumeSnapshotClasses,
+			Name:          *vs.Spec.VolumeSnapshotClassName,
+		},
+	}
+
 	// determine if we are backing up a volumesnapshot that was created by velero while performing backup of a
 	// CSI backed PVC.
 	// For volumesnapshots that were created during the backup of a CSI backed PVC, we will wait for the volumecontents to
@@ -77,36 +84,40 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 	shouldWait := vs.Labels[velerov1api.BackupNameLabel] == backup.Name
 
 	p.Log.Infof("Getting VolumesnapshotContent for Volumesnapshot %s/%s", vs.Namespace, vs.Name)
+
 	vsc, err := util.GetVolumeSnapshotContentForVolumeSnapshot(&vs, snapshotClient.SnapshotV1beta1(), p.Log, shouldWait)
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
 	}
 
-	// Capture storage provider snapshot handle and CSI driver name
-	// to be used on restore to create a static volumesnapshotcontent that will be the source of the volumesnapshot.
-	vals := map[string]string{
-		util.VolumeSnapshotHandleAnnotation: *vsc.Status.SnapshotHandle,
-		util.CSIDriverNameAnnotation:        vsc.Spec.Driver,
-	}
+	if vsc != nil {
+		// when we are backing up volumesnapshots created outside of velero, we will not
+		// await volumesnapshot reconciliation and in this case GetVolumeSnapshotContentForVolumeSnapshot
+		// may not find the associated volumesnapshotcontents to add to the backup.
+		// This is not an error encountered in the backup process. So we add the volumesnapshotcontent
+		// to the backup only if one is found.
+		additionalItems = append(additionalItems, velero.ResourceIdentifier{
+			GroupResource: kuberesource.VolumeSnapshotContents,
+			Name:          vsc.Name,
+		})
 
-	// save newly applied annotations into the backed-up volumesnapshot item
-	util.AddAnnotations(&vs.ObjectMeta, vals)
+		if vsc.Status != nil && vsc.Status.SnapshotHandle != nil {
+			// Capture storage provider snapshot handle and CSI driver name
+			// to be used on restore to create a static volumesnapshotcontent that will be the source of the volumesnapshot.
+			vals := map[string]string{
+				util.VolumeSnapshotHandleAnnotation: *vsc.Status.SnapshotHandle,
+				util.CSIDriverNameAnnotation:        vsc.Spec.Driver,
+			}
+			// save newly applied annotations into the backed-up volumesnapshot item
+			util.AddAnnotations(&vs.ObjectMeta, vals)
+		}
+	}
 
 	vsMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vs)
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
 	}
 
-	additionalItems := []velero.ResourceIdentifier{
-		{
-			GroupResource: kuberesource.VolumeSnapshotClasses,
-			Name:          *vs.Spec.VolumeSnapshotClassName,
-		},
-		{
-			GroupResource: kuberesource.VolumeSnapshotContents,
-			Name:          vsc.Name,
-		},
-	}
 	p.Log.Infof("Returning %d additionalItems to backup", len(additionalItems))
 	for _, ai := range additionalItems {
 		p.Log.Debugf("%s: %s", ai.GroupResource.String(), ai.Name)
