@@ -68,13 +68,13 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 	// the volumesnapshot. In case of a failure, backup should be re-attempted after the CSI driver has reconciled the volumesnapshot.
 	// existence of the velerov1api.BackupNameLabel indicates that the volumesnapshot was created while backing up a
 	// CSI backed PVC.
-	backupName, exists := vs.Labels[velerov1api.BackupNameLabel]
+
 	// TODO: use UID of the backup object instead of just looking for a match in the backup name. This will ensure we don't wait in cases where
 	// backup names are reused.
 	// We want to await reconciliation of only those volumesnapshots created during the ongoing backup.
 	// For this we will wait only if the backup label exists on the volumesnapshot object and the
 	// backup name is the same as that of the value of the backupLabel
-	shouldWait := exists && (backupName == backup.Name)
+	shouldWait := vs.Labels[velerov1api.BackupNameLabel] == backup.Name
 
 	p.Log.Infof("Getting VolumesnapshotContent for Volumesnapshot %s/%s", vs.Namespace, vs.Name)
 	vsc, err := util.GetVolumeSnapshotContentForVolumeSnapshot(&vs, snapshotClient.SnapshotV1beta1(), p.Log, shouldWait)

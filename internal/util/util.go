@@ -29,6 +29,7 @@ import (
 	snapshotter "github.com/kubernetes-csi/external-snapshotter/v2/pkg/client/clientset/versioned/typed/volumesnapshot/v1beta1"
 	corev1api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
@@ -135,54 +136,49 @@ func GetVolumeSnapshotClassForStorageClass(provisioner string, snapshotClient sn
 }
 
 // GetVolumeSnapshotContentForVolumeSnapshot returns the volumesnapshotcontent object associated with the volumesnapshot
-func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1beta1api.VolumeSnapshot, snapshotClient snapshotter.SnapshotV1beta1Interface, log logrus.FieldLogger, wait bool) (*snapshotv1beta1api.VolumeSnapshotContent, error) {
+func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1beta1api.VolumeSnapshot, snapshotClient snapshotter.SnapshotV1beta1Interface, log logrus.FieldLogger, shouldWait bool) (*snapshotv1beta1api.VolumeSnapshotContent, error) {
 	var snapshotContent *snapshotv1beta1api.VolumeSnapshotContent
-	success := false
-	runningRetry := false
-	for {
-		waitMsg := ""
-		if runningRetry && !wait {
-			success = false
-			break
-		}
-		if runningRetry {
-			log.Info(waitMsg)
-			time.Sleep(5 * time.Second)
-		}
-		// at this point the next iteraion of this loop will always be a retry
-		runningRetry = true
 
+	// We'll wait 10m for the VSC to be reconciled.
+	timeout := 10 * time.Minute
+	interval := 5 * time.Second
+	if !shouldWait {
+		// when not invoked with wait, set poll interval == timeout duration
+		timeout = interval
+	}
+
+	err := wait.PollImmediate(interval, timeout, func() (bool, error) {
 		vs, err := snapshotClient.VolumeSnapshots(volSnap.Namespace).Get(volSnap.Name, metav1.GetOptions{})
 		if err != nil {
-			return nil, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshot %s/%s", volSnap.Namespace, volSnap.Name))
+			return false, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshot %s/%s", volSnap.Namespace, volSnap.Name))
 		}
-		// TODO: add timeout
 		if vs.Status == nil || vs.Status.BoundVolumeSnapshotContentName == nil {
-			waitMsg = fmt.Sprintf("Waiting for CSI driver to reconcile volumesnapshot %s/%s. Retrying in 5s", volSnap.Namespace, volSnap.Name)
-			continue
+			if shouldWait {
+				log.Infof("Waiting for CSI driver to reconcile volumesnapshot %s/%s. Retrying in %ds", volSnap.Namespace, volSnap.Name, interval/time.Second)
+			}
+			return false, nil
 		}
 
 		snapshotContent, err = snapshotClient.VolumeSnapshotContents().Get(*vs.Status.BoundVolumeSnapshotContentName, metav1.GetOptions{})
 		if err != nil {
-			return nil, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotcontent %s for volumesnapshot %s/%s", *vs.Status.BoundVolumeSnapshotContentName, vs.Namespace, vs.Name))
+			return false, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotcontent %s for volumesnapshot %s/%s", *vs.Status.BoundVolumeSnapshotContentName, vs.Namespace, vs.Name))
 		}
 
 		// we need to wait for the VolumeSnaphotContent to have a snapshot handle because during restore,
 		// we'll use that snapshot handle as the source for the VolumeSnapshotContent so it's statically
 		// bound to the existing snapshot.
-		// TODO: add timeout
 		if snapshotContent.Status == nil || snapshotContent.Status.SnapshotHandle == nil {
-			waitMsg = fmt.Sprintf("Waiting for volumesnapshotcontents %s to have snapshot handle. Retrying in 5s", snapshotContent.Name)
-			continue
+			if shouldWait {
+				log.Infof("Waiting for volumesnapshotcontents %s to have snapshot handle. Retrying in %ds", snapshotContent.Name, interval/time.Second)
+			}
+			return false, nil
 		}
 
-		// we've successfully found the volumesnapshotcontent we were looking for
-		success = true
-		break
-	}
+		return true, nil
+	})
 
-	if !success {
-		return nil, errors.Errorf("failed to get volumesnapshotcontent for volumesnapshot %s/%s without waiting for reconciliation", volSnap.Namespace, volSnap.Name)
+	if err != nil {
+		return nil, err
 	}
 
 	return snapshotContent, nil

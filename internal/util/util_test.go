@@ -907,7 +907,7 @@ func TestGetVolumeSnapshotContentForVolumeSnapshot(t *testing.T) {
 			expectError: true,
 			volSnap: &snapshotv1beta1api.VolumeSnapshot{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "does-not-exist",
+					Name:      "not-found",
 					Namespace: "default",
 				},
 				Status: &snapshotv1beta1api.VolumeSnapshotStatus{
