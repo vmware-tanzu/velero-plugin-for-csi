@@ -28,14 +28,14 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 )
 
-// VSCRestorer is a restore item action plugin for Velero
-type VSCRestorer struct {
+// VolumeSnapshotContentRestoreItemAction is a restore item action plugin for Velero
+type VolumeSnapshotContentRestoreItemAction struct {
 	Log logrus.FieldLogger
 }
 
-// AppliesTo returns information indicating VSCRestorer action should be invoked while restoring
+// AppliesTo returns information indicating VolumeSnapshotContentRestoreItemAction action should be invoked while restoring
 // volumesnapshotcontent.snapshot.storage.k8s.io resources
-func (p *VSCRestorer) AppliesTo() (velero.ResourceSelector, error) {
+func (p *VolumeSnapshotContentRestoreItemAction) AppliesTo() (velero.ResourceSelector, error) {
 	return velero.ResourceSelector{
 		IncludedResources: []string{"volumesnapshotcontent.snapshot.storage.k8s.io"},
 	}, nil
@@ -43,8 +43,8 @@ func (p *VSCRestorer) AppliesTo() (velero.ResourceSelector, error) {
 
 // Execute restores a volumesnapshotcontent object without modification returning the snapshot lister secret, if any, as
 // additional items to restore.
-func (p *VSCRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
-	p.Log.Info("Starting VSCRestorerAction")
+func (p *VolumeSnapshotContentRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
+	p.Log.Info("Starting VolumeSnapshotContentRestoreItemAction")
 	var snapCont snapshotv1beta1api.VolumeSnapshotContent
 
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &snapCont); err != nil {
@@ -62,7 +62,7 @@ func (p *VSCRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vel
 		)
 	}
 
-	p.Log.Infof("Returning from VSCRestorerAction with %d additionalItems", len(additionalItems))
+	p.Log.Infof("Returning from VolumeSnapshotContentRestoreItemAction with %d additionalItems", len(additionalItems))
 	return &velero.RestoreItemActionExecuteOutput{
 		UpdatedItem:     input.Item,
 		AdditionalItems: additionalItems,

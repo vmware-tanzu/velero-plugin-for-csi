@@ -31,14 +31,14 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 )
 
-// VSRestorer is a Velero restore item action plugin for VolumeSnapshots
-type VSRestorer struct {
+// VolumeSnapshotRestoreItemAction is a Velero restore item action plugin for VolumeSnapshots
+type VolumeSnapshotRestoreItemAction struct {
 	Log logrus.FieldLogger
 }
 
-// AppliesTo returns information indicating that VSRestorer action should be invoked while restoring
+// AppliesTo returns information indicating that VolumeSnapshotRestoreItemAction should be invoked while restoring
 // volumesnapshots.snapshot.storage.k8s.io resrouces.
-func (p *VSRestorer) AppliesTo() (velero.ResourceSelector, error) {
+func (p *VolumeSnapshotRestoreItemAction) AppliesTo() (velero.ResourceSelector, error) {
 	return velero.ResourceSelector{
 		IncludedResources: []string{"volumesnapshots.snapshot.storage.k8s.io"},
 	}, nil
@@ -53,8 +53,8 @@ func resetVolumeSnapshotSpecForRestore(vs *snapshotv1beta1api.VolumeSnapshot, vs
 
 // Execute uses the data such as CSI driver name, storage snapshot handle, snapshot deletion secret (if any) from the annotations
 // to recreate a volumesnapshotcontent object and statically bind the Volumesnapshot object being restored.
-func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
-	p.Log.Info("Starting VSRestorerAction")
+func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
+	p.Log.Info("Starting VolumeSnapshotRestoreItemAction")
 	var vs snapshotv1beta1api.VolumeSnapshot
 
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &vs); err != nil {
@@ -119,7 +119,7 @@ func (p *VSRestorer) Execute(input *velero.RestoreItemActionExecuteInput) (*vele
 		return nil, errors.WithStack(err)
 	}
 
-	p.Log.Infof("Returning from VSRestorerAction with %d additionalItems", len(additionalItems))
+	p.Log.Infof("Returning from VolumeSnapshotRestoreItemAction with %d additionalItems", len(additionalItems))
 
 	return &velero.RestoreItemActionExecuteOutput{
 		UpdatedItem:     &unstructured.Unstructured{Object: vsMap},

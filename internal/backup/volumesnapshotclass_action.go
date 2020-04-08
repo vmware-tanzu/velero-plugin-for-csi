@@ -62,6 +62,6 @@ func (p *VolumeSnapshotClassBackupItemAction) Execute(item runtime.Unstructured,
 		})
 	}
 
-	p.Log.Infof("Returning %d additionalItems to backup", len(additionalItems))
+	p.Log.Infof("Returning from VolumeSnapshotClassBackupItemAction with %d additionalItems to backup", len(additionalItems))
 	return item, additionalItems, nil
 }
