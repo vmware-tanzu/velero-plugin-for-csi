@@ -155,27 +155,11 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.
 
 	setPVCAnnotationsAndLabels(&pvc, upd.Name, backup.Name)
 
-	p.Log.Info("Fetching volumesnapshotcontent for volumesnapshot")
-	snapshotContent, err := util.GetVolumeSnapshotContentForVolumeSnapshot(upd, snapshotClient.SnapshotV1beta1(), p.Log)
-	if err != nil {
-		return nil, nil, errors.WithStack(err)
-	}
-
-	p.Log.Infof("Volumesnapshotcontent for volumesnapshot %s is %s", fmt.Sprintf("%s/%s", upd.Namespace, upd.Name), snapshotContent.Name)
-
 	additionalItems := []velero.ResourceIdentifier{
-		{
-			GroupResource: kuberesource.VolumeSnapshotClasses,
-			Name:          snapshotClass.Name,
-		},
 		{
 			GroupResource: kuberesource.VolumeSnapshots,
 			Namespace:     upd.Namespace,
 			Name:          upd.Name,
-		},
-		{
-			GroupResource: kuberesource.VolumeSnapshotContents,
-			Name:          snapshotContent.Name,
 		},
 	}
 
