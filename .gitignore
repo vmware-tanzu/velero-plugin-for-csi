@@ -26,7 +26,7 @@ _testmain.go
 
 debug
 
-/velero
+/velero-plugin-for-csi
 .idea/
 
 .container-*
