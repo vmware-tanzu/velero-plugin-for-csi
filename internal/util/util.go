@@ -245,8 +245,17 @@ func AddAnnotations(o *metav1.ObjectMeta, vals map[string]string) {
 	if o.Annotations == nil {
 		o.Annotations = make(map[string]string)
 	}
-
 	for k, v := range vals {
 		o.Annotations[k] = v
+	}
+}
+
+// AddLabels adds the supplied key-values to the labels on the object
+func AddLabels(o *metav1.ObjectMeta, vals map[string]string) {
+	if o.Labels == nil {
+		o.Labels = make(map[string]string)
+	}
+	for k, v := range vals {
+		o.Labels[k] = v
 	}
 }

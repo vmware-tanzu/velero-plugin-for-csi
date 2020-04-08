@@ -1229,7 +1229,7 @@ func TestIsVolumeSnapshotHasVSCDeleteSecret(t *testing.T) {
 	}
 }
 
-func TestSetAnnotations(t *testing.T) {
+func TestAddAnnotations(t *testing.T) {
 	annotationValues := map[string]string{
 		"k1": "v1",
 		"k2": "v2",
@@ -1285,6 +1285,69 @@ func TestSetAnnotations(t *testing.T) {
 			AddAnnotations(&tc.o, tc.toAdd)
 			for k, v := range tc.toAdd {
 				actual, exists := tc.o.Annotations[k]
+				assert.True(t, exists)
+				assert.Equal(t, v, actual)
+			}
+		})
+	}
+}
+
+func TestAddLabels(t *testing.T) {
+	labelValues := map[string]string{
+		"l1": "v1",
+		"l2": "v2",
+		"l3": "v3",
+		"l4": "v4",
+		"l5": "v5",
+	}
+	testCases := []struct {
+		name  string
+		o     metav1.ObjectMeta
+		toAdd map[string]string
+	}{
+		{
+			name: "should create a new labels map when labels is nil",
+			o: metav1.ObjectMeta{
+				Labels: nil,
+			},
+			toAdd: labelValues,
+		},
+		{
+			name: "should add all supplied labels into empty labels",
+			o: metav1.ObjectMeta{
+				Labels: map[string]string{},
+			},
+			toAdd: labelValues,
+		},
+		{
+			name: "should add all supplied labels to existing labels",
+			o: metav1.ObjectMeta{
+				Labels: map[string]string{
+					"l100": "v100",
+					"l200": "v200",
+					"l300": "v300",
+				},
+			},
+			toAdd: labelValues,
+		},
+		{
+			name: "should overwrite some existing labels",
+			o: metav1.ObjectMeta{
+				Labels: map[string]string{
+					"l100": "v100",
+					"l2":   "v200",
+					"l300": "v300",
+				},
+			},
+			toAdd: labelValues,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			AddLabels(&tc.o, tc.toAdd)
+			for k, v := range tc.toAdd {
+				actual, exists := tc.o.Labels[k]
 				assert.True(t, exists)
 				assert.Equal(t, v, actual)
 			}
