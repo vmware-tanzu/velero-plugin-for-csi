@@ -36,14 +36,14 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
 
-// CSISnapshotter is a backup item action plugin for Velero.
-type CSISnapshotter struct {
+// PVCBackupItemAction is a backup item action plugin for Velero.
+type PVCBackupItemAction struct {
 	Log logrus.FieldLogger
 }
 
-// AppliesTo returns information indicating that the CSISnapshotter action should be invoked to backup PVCs.
-func (p *CSISnapshotter) AppliesTo() (velero.ResourceSelector, error) {
-	p.Log.Debug("CSISnapshotterAction AppliesTo")
+// AppliesTo returns information indicating that the PVCBackupItemAction should be invoked to backup PVCs.
+func (p *PVCBackupItemAction) AppliesTo() (velero.ResourceSelector, error) {
+	p.Log.Debug("PVCBackupItemAction AppliesTo")
 
 	return velero.ResourceSelector{
 		IncludedResources: []string{"persistentvolumeclaims"},
@@ -52,8 +52,8 @@ func (p *CSISnapshotter) AppliesTo() (velero.ResourceSelector, error) {
 
 // Execute recognizes PVCs backed by volumes provisioned by CSI drivers with volumesnapshotting capability and creates snapshots of the
 // underlying PVs by creating volumesnapshot CSI API objects that will trigger the CSI driver to perform the snapshot operation on the volume.
-func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
-	p.Log.Info("Starting CSISnapshotterAction")
+func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
+	p.Log.Info("Starting PVCBackupItemAction")
 
 	// Do nothing if volume snapshots have not been requested in this backup
 	if boolptr.IsSetToFalse(backup.Spec.SnapshotVolumes) {
@@ -154,7 +154,7 @@ func (p *CSISnapshotter) Execute(item runtime.Unstructured, backup *velerov1api.
 		},
 	}
 
-	p.Log.Infof("Returning %d additionalItems to backup", len(additionalItems))
+	p.Log.Infof("Returning from PVCBackupItemAction with %d additionalItems to backup", len(additionalItems))
 	for _, ai := range additionalItems {
 		p.Log.Debugf("%s: %s", ai.GroupResource.String(), ai.Name)
 	}

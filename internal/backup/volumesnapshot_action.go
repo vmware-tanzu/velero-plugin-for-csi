@@ -118,7 +118,7 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 		return nil, nil, errors.WithStack(err)
 	}
 
-	p.Log.Infof("Returning %d additionalItems to backup", len(additionalItems))
+	p.Log.Infof("Returning from VolumeSnapshotBackupItemAction with %d additionalItems to backup", len(additionalItems))
 	for _, ai := range additionalItems {
 		p.Log.Debugf("%s: %s", ai.GroupResource.String(), ai.Name)
 	}
