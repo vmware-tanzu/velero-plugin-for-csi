@@ -122,11 +122,16 @@ func IsPVCBackedUpByRestic(pvcNamespace, pvcName string, podClient corev1client.
 	return false, nil
 }
 
+// GetVolumeSnapshotClassForStorageClass returns a VolumeSnapshotClass for the supplied volume provisioner/ driver name.
 func GetVolumeSnapshotClassForStorageClass(provisioner string, snapshotClient snapshotter.SnapshotV1beta1Interface) (*snapshotv1beta1api.VolumeSnapshotClass, error) {
 	snapshotClasses, err := snapshotClient.VolumeSnapshotClasses().List(metav1.ListOptions{})
 	if err != nil {
 		return nil, errors.Wrap(err, "error listing volumesnapshot classes")
 	}
+	// We pick the first volumesnapshotclass that matches the CSI driver name.
+	// It is possible to have multiple VolumesnapshotClasses for the same driver with different values for the
+	// other fields in the spec.
+	// https://pkg.go.dev/github.com/kubernetes-csi/external-snapshotter/v2@v2.0.1/pkg/apis/volumesnapshot/v1beta1?tab=doc#VolumeSnapshotClass
 	for _, sc := range snapshotClasses.Items {
 		if sc.Driver == provisioner {
 			return &sc, nil
