@@ -71,6 +71,13 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 		return nil, errors.Errorf("Volumesnapshot %s/%s does not have a %s annotation", vs.Namespace, vs.Name, util.CSIDriverNameAnnotation)
 	}
 
+	deletionPolicy, exists := vs.Annotations[util.CSIVSCDeletionPolicy]
+	if !exists {
+		p.Log.Infof("Volumesnapshot %s/%s does not have a %s annotation using DeletionPolicy Retain for volumesnapshotcontent",
+			vs.Namespace, vs.Name, util.CSIVSCDeletionPolicy)
+		deletionPolicy = string(snapshotv1beta1api.VolumeSnapshotContentRetain)
+	}
+
 	// TODO: generated name will be like velero-velero-something. Fix that.
 	vsc := snapshotv1beta1api.VolumeSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{
@@ -80,7 +87,7 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 			},
 		},
 		Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{
-			DeletionPolicy: snapshotv1beta1api.VolumeSnapshotContentRetain,
+			DeletionPolicy: snapshotv1beta1api.DeletionPolicy(deletionPolicy),
 			Driver:         csiDriverName,
 			VolumeSnapshotRef: core_v1.ObjectReference{
 				Kind:      "VolumeSnapshot",
