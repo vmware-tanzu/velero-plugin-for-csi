@@ -100,17 +100,19 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 			GroupResource: kuberesource.VolumeSnapshotContents,
 			Name:          vsc.Name,
 		})
+		vals := map[string]string{
+			util.CSIVSCDeletionPolicy: string(vsc.Spec.DeletionPolicy),
+		}
 
 		if vsc.Status != nil && vsc.Status.SnapshotHandle != nil {
 			// Capture storage provider snapshot handle and CSI driver name
 			// to be used on restore to create a static volumesnapshotcontent that will be the source of the volumesnapshot.
-			vals := map[string]string{
-				util.VolumeSnapshotHandleAnnotation: *vsc.Status.SnapshotHandle,
-				util.CSIDriverNameAnnotation:        vsc.Spec.Driver,
-			}
-			// save newly applied annotations into the backed-up volumesnapshot item
-			util.AddAnnotations(&vs.ObjectMeta, vals)
+			vals[util.VolumeSnapshotHandleAnnotation] = *vsc.Status.SnapshotHandle
+			vals[util.CSIDriverNameAnnotation] = vsc.Spec.Driver
+
 		}
+		// save newly applied annotations into the backed-up volumesnapshot item
+		util.AddAnnotations(&vs.ObjectMeta, vals)
 	}
 
 	vsMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vs)

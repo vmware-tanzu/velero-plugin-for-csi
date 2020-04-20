@@ -22,6 +22,7 @@ const (
 	CSIDriverNameAnnotation          = "velero.io/csi-driver-name"
 	CSIDeleteSnapshotSecretName      = "velero.io/csi-deletesnapshotsecret-name"
 	CSIDeleteSnapshotSecretNamespace = "velero.io/csi-deletesnapshotsecret-namespace"
+	CSIVSCDeletionPolicy             = "velero.io/csi-vsc-deletion-policy"
 
 	// There is no release w/ these constants exported. Using the strings for now.
 	// CSI Labels volumesnapshotclass
