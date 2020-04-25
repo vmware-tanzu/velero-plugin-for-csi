@@ -17,12 +17,15 @@ limitations under the License.
 package backup
 
 import (
+	"fmt"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
@@ -76,16 +79,14 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 	// existence of the velerov1api.BackupNameLabel indicates that the volumesnapshot was created while backing up a
 	// CSI backed PVC.
 
-	// TODO: use UID of the backup object instead of just looking for a match in the backup name. This will ensure we don't wait in cases where
-	// backup names are reused.
 	// We want to await reconciliation of only those volumesnapshots created during the ongoing backup.
 	// For this we will wait only if the backup label exists on the volumesnapshot object and the
 	// backup name is the same as that of the value of the backupLabel
-	shouldWait := vs.Labels[velerov1api.BackupNameLabel] == backup.Name
+	backupOngoing := vs.Labels[velerov1api.BackupNameLabel] == backup.Name
 
 	p.Log.Infof("Getting VolumesnapshotContent for Volumesnapshot %s/%s", vs.Namespace, vs.Name)
 
-	vsc, err := util.GetVolumeSnapshotContentForVolumeSnapshot(&vs, snapshotClient.SnapshotV1beta1(), p.Log, shouldWait)
+	vsc, err := util.GetVolumeSnapshotContentForVolumeSnapshot(&vs, snapshotClient.SnapshotV1beta1(), p.Log, backupOngoing)
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
 	}
@@ -113,6 +114,25 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 		}
 		// save newly applied annotations into the backed-up volumesnapshot item
 		util.AddAnnotations(&vs.ObjectMeta, vals)
+
+		if backupOngoing {
+			p.Log.Infof("Patching volumensnapshotcontent %s with velero BackupNameLabel", vsc.Name)
+			// If we created the volumesnapshotcontent object during this ongoing backup, we would have created it with a DeletionPolicy of Retain.
+			// But, we want to retain these volumesnapsshotcontent ONLY for the lifetime of the backup. To that effect, during velero backup
+			// deletion, we will update the DeletionPolicy of the volumesnapshotcontent and then delete the VolumeSnapshot object which will
+			// cascade delete the volumesnapshotcontent and the associated snapshot in the storage provider (handled by the CSI driver and
+			// the CSI common controller).
+			// However, in the event that the Volumesnapshot object is deleted outside of the backup deletion process, it is possible that
+			// the dynamically created volumesnapshotcontent object will be left as an orphaned and non-discoverable resource in the cluster as well
+			// as in the storage provider. To avoid piling up of such orphaned resources, we will want to discover and delete the dynamically created
+			// volumesnapshotcontents. We do that by adding the "velero.io/backup-name" label on the volumesnapshotcontent.
+			// Further, we want to add this label only on volumesnapshotcontents that were created during an ongoing velero backup.
+
+			pb := []byte(fmt.Sprintf(`{"metadata":{"labels":{"%s":"%s"}}}`, velerov1api.BackupNameLabel, backup.Name))
+			if _, vscPatchError := snapshotClient.SnapshotV1beta1().VolumeSnapshotContents().Patch(vsc.Name, types.MergePatchType, pb); vscPatchError != nil {
+				p.Log.Warnf("Failed to patch volumesnapshotcontent %s: %v", vsc.Name, vscPatchError)
+			}
+		}
 	}
 
 	vsMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vs)
