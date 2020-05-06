@@ -30,6 +30,7 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/kuberesource"
+	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 )
 
@@ -82,7 +83,7 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 	// We want to await reconciliation of only those volumesnapshots created during the ongoing backup.
 	// For this we will wait only if the backup label exists on the volumesnapshot object and the
 	// backup name is the same as that of the value of the backupLabel
-	backupOngoing := vs.Labels[velerov1api.BackupNameLabel] == backup.Name
+	backupOngoing := vs.Labels[velerov1api.BackupNameLabel] == label.GetValidName(backup.Name)
 
 	p.Log.Infof("Getting VolumesnapshotContent for Volumesnapshot %s/%s", vs.Namespace, vs.Name)
 
@@ -128,7 +129,7 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 			// volumesnapshotcontents. We do that by adding the "velero.io/backup-name" label on the volumesnapshotcontent.
 			// Further, we want to add this label only on volumesnapshotcontents that were created during an ongoing velero backup.
 
-			pb := []byte(fmt.Sprintf(`{"metadata":{"labels":{"%s":"%s"}}}`, velerov1api.BackupNameLabel, backup.Name))
+			pb := []byte(fmt.Sprintf(`{"metadata":{"labels":{"%s":"%s"}}}`, velerov1api.BackupNameLabel, label.GetValidName(backup.Name)))
 			if _, vscPatchError := snapshotClient.SnapshotV1beta1().VolumeSnapshotContents().Patch(vsc.Name, types.MergePatchType, pb); vscPatchError != nil {
 				p.Log.Warnf("Failed to patch volumesnapshotcontent %s: %v", vsc.Name, vscPatchError)
 			}

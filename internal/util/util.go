@@ -33,6 +33,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/vmware-tanzu/velero/pkg/label"
 )
 
 const (
@@ -261,6 +263,6 @@ func AddLabels(o *metav1.ObjectMeta, vals map[string]string) {
 		o.Labels = make(map[string]string)
 	}
 	for k, v := range vals {
-		o.Labels[k] = v
+		o.Labels[k] = label.GetValidName(v)
 	}
 }
