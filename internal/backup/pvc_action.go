@@ -32,6 +32,7 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/kuberesource"
+	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
@@ -122,7 +123,7 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 			GenerateName: "velero-" + pvc.Name + "-",
 			Namespace:    pvc.Namespace,
 			Labels: map[string]string{
-				velerov1api.BackupNameLabel: backup.Name,
+				velerov1api.BackupNameLabel: label.GetValidName(backup.Name),
 			},
 		},
 		Spec: snapshotv1beta1api.VolumeSnapshotSpec{
