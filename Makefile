@@ -33,11 +33,13 @@ platform_temp = $(subst -, ,$(ARCH))
 GOOS = $(word 1, $(platform_temp))
 GOARCH = $(word 2, $(platform_temp))
 
+.PHONY: all
 all: $(addprefix build-, $(BIN))
 
 build-%:
 	$(MAKE) --no-print-directory BIN=$* build
 
+.PHONY: local
 local: build-dirs
 	GOOS=$(GOOS) \
 	GOARCH=$(GOARCH) \
@@ -81,10 +83,16 @@ build-dirs:
 	@mkdir -p _output/bin/$(GOOS)/$(GOARCH)
 	@mkdir -p .go/src/$(PKG) .go/pkg .go/bin .go/std/$(GOOS)/$(GOARCH) .go/go-build
 
+.PHONY: container
 container: all build-dirs
 	cp Dockerfile _output/bin/$(GOOS)/$(GOARCH)/Dockerfile
 	docker build -t $(IMAGE) -f _output/bin/$(GOOS)/$(GOARCH)/Dockerfile _output/bin/$(GOOS)/$(GOARCH)
 
+.PHONY: push
+push: container
+	docker push $(IMAGE)
+
+.PHONY: all-ci
 all-ci: $(addprefix ci-, $(BIN))
 
 .PHONY: modules
@@ -100,9 +108,11 @@ verify-modules: modules
 ci-%:
 	$(MAKE) --no-print-directory BIN=$* ci
 
+.PHONY: test
 test: build-dirs
 	@$(MAKE) shell  CMD="-c 'go test -timeout 30s -v -cover ./...'"
 
+.PHONY: ci
 ci: verify-modules all test
 	IMAGE=velero-plugin-for-csi:pr-verify $(MAKE) container
 
