@@ -54,10 +54,20 @@ This plugin will use the [annotations][6] on the object being restored to return
 
 ## Building the plugins
 
+Official images of the plugin is available on [Velero DockerHub](https://hub.docker.com/repository/docker/velero/velero-plugin-for-csi).
+
+For development and testing, the plugin may be built by running the below command
+
 To build the plugins, run
 
 ```bash
 $ make
+```
+
+Container images may be built by running the below command
+
+```bash
+$ IMAGE=<YOUR_REGISTRY>/velero-plugin-for-csi:<YOUR_TAG> make container
 ```
 
 ## Known shortcomings
