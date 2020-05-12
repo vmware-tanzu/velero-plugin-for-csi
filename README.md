@@ -1,20 +1,56 @@
 # Velero CSI plugins
 
 
-This repository contains _alpha_ plugins for CSI snapshotting via Velero.
+This repository contains Velero plugins for snapshotting CSI backed PVCs using the [CSI _beta_ snapshot APIs][7].
 
-These plugins are considered experimental and should _not_ be relied upon for production use.
+These plugins are currently in beta as of the [Velero 1.4 release][1] and will reach GA shortly after the CSI volumesnapshotting APIs in upstream Kubernetes reach GA.
 
-Kubernetes 1.14 or newer is required for the CSI snapshot feature.
+For a list of prerequisites and installation instructions, please refer to our documentation [here][2].
 
 
 ## Kinds of Plugins Included
 
-- **Backup Item Action**: Creates a VolumeSnapshot resource from a PersistentVolumeClaim
-- **Restore Item Actions**:
- * Edits a PersistentVolumeClaim to add a `dataSource` pointing at a VolumeSnapshot
- * Edits a VolumeSnapshot to remove the `source`, so that it's used as an 'import'.
- * Edits a VolumeSnapshotContents to point to the updated UID of a VolumeSnapshot
+### PVCBackupItemAction
+
+A plugin of type BackupItemAction that backs up `persistentvolumeclaims` which are backed by CSI volumes.
+
+This plugin will create a [CSI VolumeSnapshot][3] which in turn triggers the CSI driver to perform the snapshot operation on the volume.
+
+### VolumeSnapshotBackupItemAction
+
+A plugin of type BackupItemAction that backs up [`volumesnapshots.snapshot.storage.k8s.io`][3].
+
+When invoked, this plugin will capture information about the underlying [`volumesnapshotcontent.snapshot.storage.k8s.io`][4] in the annotations of the volumesnapshots being backed up. This plugin will also return the underlying [`volumesnapshotcontent.snapshot.storage.k8s.io`][4] and the associated [`snapshot.storage.k8s.io.volumesnapshotclasses`][5] as additional resources to be backed up.
+
+### VolumeSnapshotContentBackupItemAction
+
+A plugin of type BackupItemAction that backs up [`volumesnapshotcontent.snapshot.storage.k8s.io`][4]. 
+
+This plugin will look for snapshot delete operation secrets from the [annotations][6] on the VolumeSnapshotContent object being backed up.
+
+### VolumeSnapshotClassBackupItemAction
+
+A plugin of type BackupItemAction that backs up [`snapshot.storage.k8s.io.volumesnapshotclasses`][5].
+
+This plugin will look for snapshot list operation secret from the [annotations][6] on the VolumeSnapshotClass object being backed up.
+
+### PVCRestoreItemAction
+
+A plugin of type RestoreItemAction that restores `persistentvolumeclaims` which were backed up by [PVCBackupItemAction](#PVCBackupItemAction).
+
+This plugin will modify the spec of the `persistentvolumeclaim` being restored to use the VolumeSnapshot, created during backup, as the data source ensuring that the newly provisioned volume, to satisfy this claim, may be pre-populated using the VolumeSnapshot.
+
+### VolumeSnapshotRestoreItemAction
+
+A plugin of type RestoreItemAction that restores [`volumesnapshots.snapshot.storage.k8s.io`][3]. 
+
+This plugin will use the annotations, added during backup, to create a [`volumesnapshotcontent.snapshot.storage.k8s.io`][4] and statically bind it to the volumesnapshot object being restored. The plugin will also set the necessary [annotations][6] if the original volumesnapshotcontent had snapshot deletion secrets associated with it. 
+
+### VolumeSnapshotClassRestoreItemAction
+
+A plugin of type RestoreItemAction that restores [`snapshot.storage.k8s.io.volumesnapshotclasses`][5]. 
+
+This plugin will use the [annotations][6] on the object being restored to return, as additional items, any snapshot lister secret that is associated with the volumesnapshotclass.
 
 ## Building the plugins
 
@@ -26,60 +62,12 @@ $ make
 
 ## Known shortcomings
 
-* Deleting a backup doesn't clean up associated VolumeSnapshot(Contents) objects.
-* VolumeSnapshots taken with a backup aren't listed in the `backup describe` command.
-* VSLs must be deleted, otherwise you'll get PartiallyFailed status on your backup as the volume snapshot plugins will try to run and fail due to missing configuration for the storage class.
-* There is no VolumeSnapshot to VolumeSnapshotContent logic now, so to back up a namespace, you must back up all cluster resources.
-* Restic doesn't work for CSI-created volumes currently, as they have an additional directory that we don't expect.
-* `restore describe --detail` output needs to account for VolumeSnapshots
-* Deleting a VolumeSnapshotContent object _also deletes the underlying volume on the cloud provider_. This needs to be addressed in order for the full restoration process to work as it does with Velero.
+We are tracking known limitations with the plugins [here][2]
 
-## Using with AWS's EBS CSI driver
-
-Deploy the driver (see [their docs](https://github.com/kubernetes-sigs/aws-ebs-csi-driver/) for more details)
-
-```
-kubectl apply -k "github.com/kubernetes-sigs/aws-ebs-csi-driver/deploy/kubernetes/overlays/stable/?ref=master"
-```
-
-Apply the storage class
-
-```
-kubectl apply -f examples/sc.yaml
-```
-
-Apply the snapshot class
-
-```
-kubectl apply -f examples/snapshotclass.yaml
-```
-
-Create the demo application
-
-```
-kubectl apply -f examples/demo.yaml
-```
-
-Either start Velero locally, or edit a deployment, and provide the following flag to update the order in which to restore resources:
-
-```
---restore-resource-priorities namespaces,storageclasses,customresourcedefinitions,volumesnapshotclass.snapshot.storage.k8s.io,volumesnapshots.snapshot.storage.k8s.io,volumesnapshotcontents.snapshot.storage.k8s.io,persistentvolumes,persistentvolumeclaims,secrets,configmaps,serviceaccounts,limitranges,pods,replicaset
-```
-
-Create a backup, including cluster resources so that the VolumeSnapshotContents objects are properly backed up (walking from a VolumeSnapshot to the associated Contents will be addressed at a later time):
-
-```
-velero backup create --include-cluster-resources=true --include-namespaces demo demo-backup --wait
-```
-
-Simulate a disaster:
-
-```
-kubectl delete ns/demo
-```
-
-Recover
-
-```
-velero restore create --from-backup demo-backup
-```
+[1]: https://github.com/vmware-tanzu/velero/releases
+[2]: https://velero.io/docs/csi
+[3]: https://kubernetes.io/docs/concepts/storage/volume-snapshots/#volumesnapshots
+[4]: https://kubernetes.io/docs/concepts/storage/volume-snapshots/#volume-snapshot-contents
+[5]: https://kubernetes.io/docs/concepts/storage/volume-snapshot-classes/
+[6]: https://github.com/kubernetes-csi/external-snapshotter/blob/master/pkg/utils/util.go#L59-L60
+[7]: https://kubernetes.io/blog/2019/12/09/kubernetes-1-17-feature-cis-volume-snapshot-beta/
