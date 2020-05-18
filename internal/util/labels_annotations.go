@@ -19,6 +19,7 @@ package util
 const (
 	VolumeSnapshotLabel              = "velero.io/volume-snapshot-name"
 	VolumeSnapshotHandleAnnotation   = "velero.io/csi-volumesnapshot-handle"
+	VolumeSnapshotRestoreSize        = "velero.io/vsi-volumesnapshot-restore-size"
 	CSIDriverNameAnnotation          = "velero.io/csi-driver-name"
 	CSIDeleteSnapshotSecretName      = "velero.io/csi-deletesnapshotsecret-name"
 	CSIDeleteSnapshotSecretNamespace = "velero.io/csi-deletesnapshotsecret-namespace"

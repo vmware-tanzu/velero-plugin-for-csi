@@ -23,6 +23,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -106,12 +107,16 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 			util.CSIVSCDeletionPolicy: string(vsc.Spec.DeletionPolicy),
 		}
 
-		if vsc.Status != nil && vsc.Status.SnapshotHandle != nil {
-			// Capture storage provider snapshot handle and CSI driver name
-			// to be used on restore to create a static volumesnapshotcontent that will be the source of the volumesnapshot.
-			vals[util.VolumeSnapshotHandleAnnotation] = *vsc.Status.SnapshotHandle
-			vals[util.CSIDriverNameAnnotation] = vsc.Spec.Driver
-
+		if vsc.Status != nil {
+			if vsc.Status.SnapshotHandle != nil {
+				// Capture storage provider snapshot handle and CSI driver name
+				// to be used on restore to create a static volumesnapshotcontent that will be the source of the volumesnapshot.
+				vals[util.VolumeSnapshotHandleAnnotation] = *vsc.Status.SnapshotHandle
+				vals[util.CSIDriverNameAnnotation] = vsc.Spec.Driver
+			}
+			if vsc.Status.RestoreSize != nil {
+				vals[util.VolumeSnapshotRestoreSize] = resource.NewQuantity(*vsc.Status.RestoreSize, resource.BinarySI).String()
+			}
 		}
 		// save newly applied annotations into the backed-up volumesnapshot item
 		util.AddAnnotations(&vs.ObjectMeta, vals)

@@ -17,11 +17,15 @@ limitations under the License.
 package restore
 
 import (
+	"fmt"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	corev1api "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -66,6 +70,21 @@ func resetPVCSpec(pvc *corev1api.PersistentVolumeClaim, vsName string) {
 	}
 }
 
+func setPVCStorageResourceRequest(pvc *corev1api.PersistentVolumeClaim, restoreSize resource.Quantity, log logrus.FieldLogger) {
+	{
+		if pvc.Spec.Resources.Requests == nil {
+			pvc.Spec.Resources.Requests = corev1api.ResourceList{}
+		}
+
+		storageReq, exists := pvc.Spec.Resources.Requests[corev1api.ResourceStorage]
+		if !exists || storageReq.Cmp(restoreSize) < 0 {
+			pvc.Spec.Resources.Requests[corev1api.ResourceStorage] = restoreSize
+			rs := pvc.Spec.Resources.Requests[corev1api.ResourceStorage]
+			log.Infof("Resetting storage requests for PVC %s/%s to %s", pvc.Namespace, pvc.Name, rs.String())
+		}
+	}
+}
+
 // Execute modifies the PVC's spec to use the volumesnapshot object as the data source ensuring that the newly provisioned volume
 // can be pre-populated with data from the volumesnapshot.
 func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
@@ -84,6 +103,32 @@ func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInp
 			UpdatedItem: input.Item,
 		}, nil
 	}
+
+	_, snapClient, err := util.GetClients()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	vs, err := snapClient.SnapshotV1beta1().VolumeSnapshots(pvc.Namespace).Get(volumeSnapshotName, metav1.GetOptions{})
+	if err != nil {
+		return nil, errors.Wrapf(err, fmt.Sprintf("Failed to get Volumesnapshot %s/%s to restore PVC %s/%s", pvc.Namespace, volumeSnapshotName, pvc.Namespace, pvc.Name))
+	}
+
+	if _, exists := vs.Annotations[util.VolumeSnapshotRestoreSize]; exists {
+		restoreSize, err := resource.ParseQuantity(vs.Annotations[util.VolumeSnapshotRestoreSize])
+		if err != nil {
+			return nil, errors.Wrapf(err, fmt.Sprintf("Failed to parse %s from annotation on Volumesnapshot %s/%s into restore size",
+				vs.Annotations[util.VolumeSnapshotRestoreSize], vs.Namespace, vs.Name))
+		}
+		// It is possible that the volume provider allocated a larger capacity volume than what was requested in the backed up PVC.
+		// In this scenario the volumesnapshot of the PVC will endup being larger than its requested storage size.
+		// Such a PVC, on restore as-is, will be stuck attempting to use a Volumesnapshot as a data source for a PVC that
+		// is not large enough.
+		// To counter that, here we set the storage request on the PVC to the larger of the PVC's storage request and the size of the
+		// VolumeSnapshot
+		setPVCStorageResourceRequest(&pvc, restoreSize, p.Log)
+	}
+
 	resetPVCSpec(&pvc, volumeSnapshotName)
 
 	pvcMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&pvc)
