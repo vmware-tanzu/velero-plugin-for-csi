@@ -28,6 +28,7 @@ import (
 
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 )
 
@@ -82,8 +83,8 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 	vsc := snapshotv1beta1api.VolumeSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "velero-" + vs.Name + "-",
-			Annotations: map[string]string{
-				velerov1api.RestoreNameLabel: input.Restore.Name,
+			Labels: map[string]string{
+				velerov1api.RestoreNameLabel: label.GetValidName(input.Restore.Name),
 			},
 		},
 		Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{
