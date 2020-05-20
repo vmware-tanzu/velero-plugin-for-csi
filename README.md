@@ -52,12 +52,15 @@ A plugin of type RestoreItemAction that restores [`snapshot.storage.k8s.io.volum
 
 This plugin will use the [annotations][6] on the object being restored to return, as additional items, any snapshot lister secret that is associated with the volumesnapshotclass.
 
+
 ## Building the plugins
 
-To build the plugins, run
+Official images of the plugin is available on [Velero DockerHub](https://hub.docker.com/repository/docker/velero/velero-plugin-for-csi).
+
+For development and testing, the plugin container images may be built by running the below command
 
 ```bash
-$ make
+$ IMAGE=<YOUR_REGISTRY>/velero-plugin-for-csi:<YOUR_TAG> make container
 ```
 
 ## Known shortcomings
