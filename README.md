@@ -8,6 +8,15 @@ These plugins are currently in beta as of the [Velero 1.4 release][1] and will r
 For a list of prerequisites and installation instructions, please refer to our documentation [here][2].
 
 
+## Compatibility
+
+Below is a listing of plugin versions and respective Velero versions that are compatible.
+
+| Plugin Version  | Velero Version |
+|-----------------|----------------|
+| v0.1.x          | v1.4.x         |
+
+
 ## Kinds of Plugins Included
 
 ### PVCBackupItemAction
