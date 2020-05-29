@@ -1,3 +1,5 @@
+[![Build Status][101]][102]
+
 # Velero CSI plugins
 
 
@@ -83,3 +85,6 @@ We are tracking known limitations with the plugins [here][2]
 [5]: https://kubernetes.io/docs/concepts/storage/volume-snapshot-classes/
 [6]: https://github.com/kubernetes-csi/external-snapshotter/blob/master/pkg/utils/util.go#L59-L60
 [7]: https://kubernetes.io/blog/2019/12/09/kubernetes-1-17-feature-cis-volume-snapshot-beta/
+
+[101]: https://github.com/vmware-tanzu/velero-plugin-for-csi/workflows/Master%20CI/badge.svg
+[102]: https://github.com/vmware-tanzu/velero-plugin-for-csi/actions?query=workflow%3A"Master+CI"
