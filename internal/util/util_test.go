@@ -692,6 +692,9 @@ func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
 	hostpathClass := &snapshotv1beta1api.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "hostpath",
+			Labels: map[string]string{
+				VolumeSnapshotClassSelectorLabel: "foo",
+			},
 		},
 		Driver: "hostpath.csi.k8s.io",
 	}
@@ -699,6 +702,9 @@ func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
 	fooClass := &snapshotv1beta1api.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "foo",
+			Labels: map[string]string{
+				VolumeSnapshotClassSelectorLabel: "foo",
+			},
 		},
 		Driver: "foo.csi.k8s.io",
 	}
@@ -706,6 +712,9 @@ func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
 	barClass := &snapshotv1beta1api.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "bar",
+			Labels: map[string]string{
+				VolumeSnapshotClassSelectorLabel: "foo",
+			},
 		},
 		Driver: "bar.csi.k8s.io",
 	}
@@ -745,10 +754,10 @@ func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "should find foo volumesnapshotclass",
+			name:        "should not find foo volumesnapshotclass without \"velero.io/csi-volumesnapshot-class\" label",
 			driverName:  "baz.csi.k8s.io",
 			expectedVSC: bazClass,
-			expectError: false,
+			expectError: true,
 		},
 		{
 			name:        "should not find does-not-exist volumesnapshotclass",
