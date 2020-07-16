@@ -130,16 +130,17 @@ func GetVolumeSnapshotClassForStorageClass(provisioner string, snapshotClient sn
 	if err != nil {
 		return nil, errors.Wrap(err, "error listing volumesnapshot classes")
 	}
-	// We pick the first volumesnapshotclass that matches the CSI driver name.
-	// It is possible to have multiple VolumesnapshotClasses for the same driver with different values for the
+	// We pick the volumesnapshotclass that matches the CSI driver name and has a 'velero.io/csi-volumesnapshot-class'
+	// label. This allows multiple VolumesnapshotClasses for the same driver with different values for the
 	// other fields in the spec.
 	// https://pkg.go.dev/github.com/kubernetes-csi/external-snapshotter/v2@v2.0.1/pkg/apis/volumesnapshot/v1beta1?tab=doc#VolumeSnapshotClass
 	for _, sc := range snapshotClasses.Items {
-		if sc.Driver == provisioner {
+		_, hasLabelSelector := sc.Labels[VolumeSnapshotClassSelectorLabel]
+		if sc.Driver == provisioner && hasLabelSelector {
 			return &sc, nil
 		}
 	}
-	return nil, errors.Errorf("failed to get volumesnapshotclass for provisioner %s", provisioner)
+	return nil, errors.Errorf("failed to get volumesnapshotclass for provisioner %s, ensure that the desired volumesnapshot class has the %s label", provisioner, VolumeSnapshotClassSelectorLabel)
 }
 
 // GetVolumeSnapshotContentForVolumeSnapshot returns the volumesnapshotcontent object associated with the volumesnapshot
