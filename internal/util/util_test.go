@@ -1363,3 +1363,49 @@ func TestAddLabels(t *testing.T) {
 		})
 	}
 }
+
+func TestIsVolumeSnapshotExists(t *testing.T) {
+	vsExists := &snapshotv1beta1api.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vs-exists",
+			Namespace: "default",
+		},
+	}
+	vsNotExists := &snapshotv1beta1api.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vs-does-not-exists",
+			Namespace: "default",
+		},
+	}
+
+	objs := []runtime.Object{vsExists}
+	fakeClient := snapshotFake.NewSimpleClientset(objs...)
+	testCases := []struct {
+		name     string
+		expected bool
+		vs       *snapshotv1beta1api.VolumeSnapshot
+	}{
+		{
+			name:     "should find existing VolumeSnapshot object",
+			expected: true,
+			vs:       vsExists,
+		},
+		{
+			name:     "should not find non-existing VolumeSnapshot object",
+			expected: false,
+			vs:       vsNotExists,
+		},
+		{
+			name:     "should not find a nil VolumeSnapshot object",
+			expected: false,
+			vs:       nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := IsVolumeSnapshotExists(tc.vs, fakeClient.SnapshotV1beta1())
+			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}
