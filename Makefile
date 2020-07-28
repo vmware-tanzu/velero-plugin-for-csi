@@ -90,6 +90,10 @@ container: all build-dirs
 
 .PHONY: push
 push: container
+ifeq ($(TAG_LATEST), true)
+	docker tag $(IMAGE_NAME):$(TAG) $(IMAGE_NAME):latest
+	docker push $(IMAGE_NAME):latest
+endif
 	docker push $(IMAGE)
 
 .PHONY: all-ci
