@@ -17,6 +17,8 @@ limitations under the License.
 package restore
 
 import (
+	"context"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
@@ -113,7 +115,7 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 	// between the volumesnapshotcontent and volumesnapshot objects have to be setup.
 	// Further, it is disallowed to convert a dynamically created volumesnapshotcontent for static binding.
 	// See: https://github.com/kubernetes-csi/external-snapshotter/issues/274
-	vscupd, err := snapClient.SnapshotV1beta1().VolumeSnapshotContents().Create(&vsc)
+	vscupd, err := snapClient.SnapshotV1beta1().VolumeSnapshotContents().Create(context.TODO(), &vsc, metav1.CreateOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create volumesnapshotcontents %s", vsc.GenerateName)
 	}

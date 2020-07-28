@@ -17,6 +17,7 @@ limitations under the License.
 package util
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -51,7 +52,7 @@ func GetPVForPVC(pvc *corev1api.PersistentVolumeClaim, corev1 corev1client.Persi
 		return nil, errors.Errorf("PVC %s/%s is in phase %v and is not bound to a volume", pvc.Namespace, pvc.Name, pvc.Status.Phase)
 	}
 	pvName := pvc.Spec.VolumeName
-	pv, err := corev1.PersistentVolumes().Get(pvName, metav1.GetOptions{})
+	pv, err := corev1.PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get PV %s for PVC %s/%s", pvName, pvc.Namespace, pvc.Name)
 	}
@@ -60,7 +61,7 @@ func GetPVForPVC(pvc *corev1api.PersistentVolumeClaim, corev1 corev1client.Persi
 
 func GetPodsUsingPVC(pvcNamespace, pvcName string, corev1 corev1client.PodsGetter) ([]corev1api.Pod, error) {
 	podsUsingPVC := []corev1api.Pod{}
-	podList, err := corev1.Pods(pvcNamespace).List(metav1.ListOptions{})
+	podList, err := corev1.Pods(pvcNamespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +127,7 @@ func IsPVCBackedUpByRestic(pvcNamespace, pvcName string, podClient corev1client.
 
 // GetVolumeSnapshotClassForStorageClass returns a VolumeSnapshotClass for the supplied volume provisioner/ driver name.
 func GetVolumeSnapshotClassForStorageClass(provisioner string, snapshotClient snapshotter.SnapshotV1beta1Interface) (*snapshotv1beta1api.VolumeSnapshotClass, error) {
-	snapshotClasses, err := snapshotClient.VolumeSnapshotClasses().List(metav1.ListOptions{})
+	snapshotClasses, err := snapshotClient.VolumeSnapshotClasses().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, errors.Wrap(err, "error listing volumesnapshot classes")
 	}
@@ -150,7 +151,7 @@ func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1beta1api.Volum
 			// volumesnapshot hasn't been reconciled and we're not waiting for it.
 			return nil, nil
 		}
-		vsc, err := snapshotClient.VolumeSnapshotContents().Get(*volSnap.Status.BoundVolumeSnapshotContentName, metav1.GetOptions{})
+		vsc, err := snapshotClient.VolumeSnapshotContents().Get(context.TODO(), *volSnap.Status.BoundVolumeSnapshotContentName, metav1.GetOptions{})
 		if err != nil {
 			return nil, errors.Wrap(err, "error getting volume snapshot content from API")
 		}
@@ -164,7 +165,7 @@ func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1beta1api.Volum
 	var snapshotContent *snapshotv1beta1api.VolumeSnapshotContent
 
 	err := wait.PollImmediate(interval, timeout, func() (bool, error) {
-		vs, err := snapshotClient.VolumeSnapshots(volSnap.Namespace).Get(volSnap.Name, metav1.GetOptions{})
+		vs, err := snapshotClient.VolumeSnapshots(volSnap.Namespace).Get(context.TODO(), volSnap.Name, metav1.GetOptions{})
 		if err != nil {
 			return false, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshot %s/%s", volSnap.Namespace, volSnap.Name))
 		}
@@ -174,7 +175,7 @@ func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1beta1api.Volum
 			return false, nil
 		}
 
-		snapshotContent, err = snapshotClient.VolumeSnapshotContents().Get(*vs.Status.BoundVolumeSnapshotContentName, metav1.GetOptions{})
+		snapshotContent, err = snapshotClient.VolumeSnapshotContents().Get(context.TODO(), *vs.Status.BoundVolumeSnapshotContentName, metav1.GetOptions{})
 		if err != nil {
 			return false, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotcontent %s for volumesnapshot %s/%s", *vs.Status.BoundVolumeSnapshotContentName, vs.Namespace, vs.Name))
 		}
