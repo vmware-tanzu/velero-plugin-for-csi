@@ -46,4 +46,5 @@ go mod download
 go build \
     -o ${OUTPUT} \
     -installsuffix "static" \
+    -mod=readonly \
     ./
