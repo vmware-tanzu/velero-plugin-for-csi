@@ -28,12 +28,7 @@ jobs:
     - name: Test
       run: make test
     
-    - name: Get Tag
-      id: get_tag
-      run: |
-        echo ::set-output name=TAG::$(echo $GITHUB_REF | cut -d / -f 3)
-        
     - name: Publish container image
       run: |
         docker login -u ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_PASSWORD }}
-        TAG=${{ steps.get_tag.outputs.TAG }} make push
+        ./hack/docker-push.sh
