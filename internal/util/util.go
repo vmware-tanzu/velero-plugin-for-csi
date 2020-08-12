@@ -268,3 +268,16 @@ func AddLabels(o *metav1.ObjectMeta, vals map[string]string) {
 		o.Labels[k] = label.GetValidName(v)
 	}
 }
+
+// IsVolumeSnapshotExists returns whether a specific volumesnapshot object exists.
+func IsVolumeSnapshotExists(volSnap *snapshotv1beta1api.VolumeSnapshot, snapshotClient snapshotter.SnapshotV1beta1Interface) bool {
+	exists := false
+	if volSnap != nil {
+		vs, err := snapshotClient.VolumeSnapshots(volSnap.Namespace).Get(context.TODO(), volSnap.Name, metav1.GetOptions{})
+		if err == nil && vs != nil {
+			exists = true
+		}
+	}
+
+	return exists
+}
