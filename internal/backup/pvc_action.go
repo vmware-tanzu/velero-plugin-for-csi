@@ -116,7 +116,7 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 	// In such a scenario, the backup objects will be useless as the snapshot handle itself will not be valid.
 	if snapshotClass.DeletionPolicy != snapshotv1beta1api.VolumeSnapshotContentRetain {
 		p.Log.Warnf("DeletionPolicy on VolumeSnapshotClass %s is not %s; Deletion of VolumeSnapshot objects will lead to deletion of snapshot in the storage provider.",
-			snapshotClass.Name, snapshotv1beta1api.VolumeSnapshotContentRetain, snapshotClass.DeletionPolicy, snapshotv1beta1api.VolumeSnapshotContentRetain)
+			snapshotClass.Name, snapshotv1beta1api.VolumeSnapshotContentRetain)
 	}
 	// Craft the snapshot object to be created
 	snapshot := snapshotv1beta1api.VolumeSnapshot{
