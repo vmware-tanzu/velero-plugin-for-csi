@@ -389,86 +389,6 @@ func TestGetPodVolumeNameForPVC(t *testing.T) {
 	}
 }
 
-func TestGetPodVolumesUsingRestic(t *testing.T) {
-	testCases := []struct {
-		name                  string
-		pod                   corev1api.Pod
-		expectedResticVolumes []string
-	}{
-		{
-			name: "Pod using restic on 3 volumes",
-			pod: corev1api.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-pod",
-					Namespace: "test-ns",
-					Annotations: map[string]string{
-						"backup.velero.io/backup-volumes": "vol1,vol2,vol3",
-					},
-				},
-			},
-			expectedResticVolumes: []string{"vol1", "vol2", "vol3"},
-		},
-		{
-			name: "Pod using restic on 1 volume",
-			pod: corev1api.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-pod",
-					Namespace: "test-ns",
-					Annotations: map[string]string{
-						"backup.velero.io/backup-volumes": "vol1",
-					},
-				},
-			},
-			expectedResticVolumes: []string{"vol1"},
-		},
-		{
-			name: "Pod using restic on 0 volumes",
-			pod: corev1api.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-pod",
-					Namespace: "test-ns",
-					Annotations: map[string]string{
-						"backup.velero.io/backup-volumes": "",
-					},
-				},
-			},
-			expectedResticVolumes: []string{},
-		},
-		{
-			name: "Pod with no annotation",
-			pod: corev1api.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-pod",
-					Namespace: "test-ns",
-				},
-			},
-			expectedResticVolumes: []string{},
-		},
-		{
-			name: "Pod with annotation but no restic annotations",
-			pod: corev1api.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-pod",
-					Namespace: "test-ns",
-					Annotations: map[string]string{
-						"annotation1": "val1",
-						"annotation2": "val2",
-						"annotation3": "val3",
-					},
-				},
-			},
-			expectedResticVolumes: []string{},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			actualResticVolumes := GetPodVolumesUsingRestic(tc.pod)
-			assert.Equal(t, tc.expectedResticVolumes, actualResticVolumes)
-		})
-	}
-}
-
 func TestContains(t *testing.T) {
 	testCases := []struct {
 		name           string
@@ -649,40 +569,52 @@ func TestIsPVCBackedUpByRestic(t *testing.T) {
 	fakeClient := fake.NewSimpleClientset(objs...)
 
 	testCases := []struct {
-		name                 string
-		inPVCNamespace       string
-		inPVCName            string
-		expectedIsResticUsed bool
+		name                        string
+		inPVCNamespace              string
+		inPVCName                   string
+		expectedIsResticUsed        bool
+		defaultVolumeBackupToRestic bool
 	}{
 		{
-			name:                 "2 pods using PVC, 1 pod using restic",
-			inPVCNamespace:       "default",
-			inPVCName:            "csi-pvc1",
-			expectedIsResticUsed: true,
+			name:                        "2 pods using PVC, 1 pod using restic",
+			inPVCNamespace:              "default",
+			inPVCName:                   "csi-pvc1",
+			expectedIsResticUsed:        true,
+			defaultVolumeBackupToRestic: false,
 		},
 		{
-			name:                 "2 pods using PVC, 2 pods using restic",
-			inPVCNamespace:       "restic-ns",
-			inPVCName:            "csi-pvc1",
-			expectedIsResticUsed: true,
+			name:                        "2 pods using PVC, 2 pods using restic",
+			inPVCNamespace:              "restic-ns",
+			inPVCName:                   "csi-pvc1",
+			expectedIsResticUsed:        true,
+			defaultVolumeBackupToRestic: false,
 		},
 		{
-			name:                 "2 pods using PVC, 0 pods using restic",
-			inPVCNamespace:       "awesome-ns",
-			inPVCName:            "csi-pvc1",
-			expectedIsResticUsed: false,
+			name:                        "2 pods using PVC, 0 pods using restic",
+			inPVCNamespace:              "awesome-ns",
+			inPVCName:                   "awesome-csi-pvc1",
+			expectedIsResticUsed:        false,
+			defaultVolumeBackupToRestic: false,
 		},
 		{
-			name:                 "0 pods using PVC",
-			inPVCNamespace:       "default",
-			inPVCName:            "does-not-exist",
-			expectedIsResticUsed: false,
+			name:                        "0 pods using PVC",
+			inPVCNamespace:              "default",
+			inPVCName:                   "does-not-exist",
+			expectedIsResticUsed:        false,
+			defaultVolumeBackupToRestic: false,
+		},
+		{
+			name:                        "2 pods using PVC, using restic using restic by default",
+			inPVCNamespace:              "awesome-ns",
+			inPVCName:                   "awesome-csi-pvc1",
+			expectedIsResticUsed:        true,
+			defaultVolumeBackupToRestic: true,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualIsResticUsed, _ := IsPVCBackedUpByRestic(tc.inPVCNamespace, tc.inPVCName, fakeClient.CoreV1())
+			actualIsResticUsed, _ := IsPVCBackedUpByRestic(tc.inPVCNamespace, tc.inPVCName, fakeClient.CoreV1(), tc.defaultVolumeBackupToRestic)
 			assert.Equal(t, tc.expectedIsResticUsed, actualIsResticUsed)
 		})
 	}
