@@ -85,12 +85,12 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 	}
 
 	// Do nothing if restic is used to backup this PV
-	isResticUsed, err := util.IsPVCBackedUpByRestic(pvc.Namespace, pvc.Name, client.CoreV1())
+	isResticUsed, err := util.IsPVCBackedUpByRestic(pvc.Namespace, pvc.Name, client.CoreV1(), boolptr.IsSetToTrue(backup.Spec.DefaultVolumesToRestic))
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
 	}
 	if isResticUsed {
-		p.Log.Infof("Skipping  PVC %s/%s, PV will be backed up using restic", pvc.Namespace, pvc.Name, pv.Name)
+		p.Log.Infof("Skipping  PVC %s/%s, PV %s will be backed up using restic", pvc.Namespace, pvc.Name, pv.Name)
 		return item, nil, nil
 	}
 

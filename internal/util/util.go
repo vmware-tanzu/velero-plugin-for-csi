@@ -19,7 +19,6 @@ package util
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -36,6 +35,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/vmware-tanzu/velero/pkg/label"
+	"github.com/vmware-tanzu/velero/pkg/restic"
 )
 
 const (
@@ -86,14 +86,6 @@ func GetPodVolumeNameForPVC(pod corev1api.Pod, pvcName string) (string, error) {
 	return "", errors.Errorf("Pod %s/%s does not use PVC %s/%s", pod.Namespace, pod.Name, pod.Namespace, pvcName)
 }
 
-func GetPodVolumesUsingRestic(pod corev1api.Pod) []string {
-	resticAnnotation := pod.Annotations[resticPodAnnotation]
-	if resticAnnotation == "" {
-		return []string{}
-	}
-	return strings.Split(pod.Annotations[resticPodAnnotation], ",")
-}
-
 func Contains(slice []string, key string) bool {
 	for _, i := range slice {
 		if i == key {
@@ -103,14 +95,14 @@ func Contains(slice []string, key string) bool {
 	return false
 }
 
-func IsPVCBackedUpByRestic(pvcNamespace, pvcName string, podClient corev1client.PodsGetter) (bool, error) {
+func IsPVCBackedUpByRestic(pvcNamespace, pvcName string, podClient corev1client.PodsGetter, defaultVolumesToRestic bool) (bool, error) {
 	pods, err := GetPodsUsingPVC(pvcNamespace, pvcName, podClient)
 	if err != nil {
 		return false, errors.WithStack(err)
 	}
 
 	for _, p := range pods {
-		resticVols := GetPodVolumesUsingRestic(p)
+		resticVols := restic.GetPodVolumesUsingRestic(&p, defaultVolumesToRestic)
 		if len(resticVols) > 0 {
 			volName, err := GetPodVolumeNameForPVC(p, pvcName)
 			if err != nil {
