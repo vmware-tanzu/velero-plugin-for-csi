@@ -120,6 +120,9 @@ test: build-dirs
 ci: verify-modules all test
 	IMAGE=velero-plugin-for-csi:pr-verify $(MAKE) container
 
+changelog:
+	hack/release-tools/changelog.sh
+
 clean:
 	@echo "cleaning"
 	rm -rf .go _output
