@@ -63,6 +63,13 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &vs); err != nil {
 		return &velero.RestoreItemActionExecuteOutput{}, errors.Wrapf(err, "failed to convert input.Item from unstructured")
 	}
+
+	// If cross-namespace restore is configured, change the namespace
+	// for VolumeSnapshot object to be restored
+	if val, ok := input.Restore.Spec.NamespaceMapping[vs.GetNamespace()]; ok {
+		vs.SetNamespace(val)
+	}
+
 	_, snapClient, err := util.GetClients()
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -86,10 +93,9 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 			deletionPolicy = string(snapshotv1beta1api.VolumeSnapshotContentRetain)
 		}
 
-		// TODO: generated name will be like velero-velero-something. Fix that.
 		vsc := snapshotv1beta1api.VolumeSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: "velero-" + vs.Name + "-",
+				GenerateName: input.Restore.GetName() + "-" + vs.Name + "-",
 				Labels: map[string]string{
 					velerov1api.RestoreNameLabel: label.GetValidName(input.Restore.Name),
 				},
