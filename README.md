@@ -9,6 +9,18 @@ These plugins are currently in beta as of the [Velero 1.4 release][1] and will r
 
 For a list of prerequisites and installation instructions, please refer to our documentation [here][2].
 
+# WARNING
+CSI Snapshots are a standard Kubernetes mechanism for taking snapshots.  The actual implementation of snapshots
+varies by storage vendor.  For disaster recovery, snapshots must be stored in a durable store, such as an S3
+bucket, tape library, etc. and not just on the primary storage.  If the snapshot is only stored on the primary
+storage and the storage is corrupted or destroyed the backup will be lost.
+
+CSI snapshots on AWS EBS, Azure managed disks and Google Cloud Persistent Disk are durable and can be safely
+used for backup.
+
+For all other storage systems, please check with your storage vendor.  If your storage vendor doesn't support 
+durable snapshot storage you may want to consider 
+[Velero's Restic Integration](https://velero.io/docs/latest/restic)
 
 ## Compatibility
 
