@@ -17,6 +17,7 @@ limitations under the License.
 package backup
 
 import (
+	"context"
 	"fmt"
 
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
@@ -84,12 +85,12 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 	}
 
 	// Do nothing if restic is used to backup this PV
-	isResticUsed, err := util.IsPVCBackedUpByRestic(pvc.Namespace, pvc.Name, client.CoreV1())
+	isResticUsed, err := util.IsPVCBackedUpByRestic(pvc.Namespace, pvc.Name, client.CoreV1(), boolptr.IsSetToTrue(backup.Spec.DefaultVolumesToRestic))
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
 	}
 	if isResticUsed {
-		p.Log.Infof("Skipping  PVC %s/%s, PV will be backed up using restic", pvc.Namespace, pvc.Name, pv.Name)
+		p.Log.Infof("Skipping  PVC %s/%s, PV %s will be backed up using restic", pvc.Namespace, pvc.Name, pv.Name)
 		return item, nil, nil
 	}
 
@@ -99,7 +100,7 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 	}
 
 	p.Log.Infof("Fetching storage class for PV %s", *pvc.Spec.StorageClassName)
-	storageClass, err := client.StorageV1().StorageClasses().Get(*pvc.Spec.StorageClassName, metav1.GetOptions{})
+	storageClass, err := client.StorageV1().StorageClasses().Get(context.TODO(), *pvc.Spec.StorageClassName, metav1.GetOptions{})
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error getting storage class")
 	}
@@ -115,7 +116,7 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 	// In such a scenario, the backup objects will be useless as the snapshot handle itself will not be valid.
 	if snapshotClass.DeletionPolicy != snapshotv1beta1api.VolumeSnapshotContentRetain {
 		p.Log.Warnf("DeletionPolicy on VolumeSnapshotClass %s is not %s; Deletion of VolumeSnapshot objects will lead to deletion of snapshot in the storage provider.",
-			snapshotClass.Name, snapshotv1beta1api.VolumeSnapshotContentRetain, snapshotClass.DeletionPolicy, snapshotv1beta1api.VolumeSnapshotContentRetain)
+			snapshotClass.Name, snapshotv1beta1api.VolumeSnapshotContentRetain)
 	}
 	// Craft the snapshot object to be created
 	snapshot := snapshotv1beta1api.VolumeSnapshot{
@@ -134,7 +135,7 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 		},
 	}
 
-	upd, err := snapshotClient.SnapshotV1beta1().VolumeSnapshots(pvc.Namespace).Create(&snapshot)
+	upd, err := snapshotClient.SnapshotV1beta1().VolumeSnapshots(pvc.Namespace).Create(context.TODO(), &snapshot, metav1.CreateOptions{})
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "error creating volume snapshot")
 	}

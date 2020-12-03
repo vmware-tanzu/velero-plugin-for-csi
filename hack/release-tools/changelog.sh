@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2016 The Kubernetes Authors.
+# Copyright 2018 the Velero contributors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,31 +18,18 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-if [ -z "${BIN}" ]; then
-    echo "BIN must be set"
-    exit 1
-fi
-if [ -z "${GOOS}" ]; then
-    echo "GOOS must be set"
-    exit 1
-fi
-if [ -z "${GOARCH}" ]; then
-    echo "GOARCH must be set"
-    exit 1
-fi
+function join { local IFS="$1"; shift; echo "$*"; }
 
-export CGO_ENABLED=0
-
-if [[ -z "${OUTPUT_DIR:-}" ]]; then
-  OUTPUT_DIR=.
-fi
-OUTPUT=${OUTPUT_DIR}/${BIN}
-if [[ "${GOOS}" = "windows" ]]; then
-  OUTPUT="${OUTPUT}.exe"
-fi
-
-go build \
-    -o ${OUTPUT} \
-    -installsuffix "static" \
-    -mod=readonly \
-    ./
+CHANGELOG_PATH='changelogs/unreleased'
+UNRELEASED=$(ls -t ${CHANGELOG_PATH})
+echo -e "Generating CHANGELOG markdown from ${CHANGELOG_PATH}\n"
+for entry in $UNRELEASED
+do
+    IFS=$'-' read -ra pruser <<<"$entry"
+    contents=$(cat ${CHANGELOG_PATH}/${entry})
+    pr=${pruser[0]}
+    user=$(join '-' ${pruser[@]:1})
+    echo "  * ${contents} (#${pr}, @${user})"
+done
+echo -e "\nCopy and paste the list above in to the appropriate CHANGELOG file."
+echo "Be sure to run: git rm ${CHANGELOG_PATH}/*"

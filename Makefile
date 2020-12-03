@@ -90,6 +90,10 @@ container: all build-dirs
 
 .PHONY: push
 push: container
+ifeq ($(TAG_LATEST), true)
+	docker tag $(IMAGE_NAME):$(TAG) $(IMAGE_NAME):latest
+	docker push $(IMAGE_NAME):latest
+endif
 	docker push $(IMAGE)
 
 .PHONY: all-ci
@@ -115,6 +119,9 @@ test: build-dirs
 .PHONY: ci
 ci: verify-modules all test
 	IMAGE=velero-plugin-for-csi:pr-verify $(MAKE) container
+
+changelog:
+	hack/release-tools/changelog.sh
 
 clean:
 	@echo "cleaning"
