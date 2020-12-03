@@ -5,5 +5,5 @@
   "live_reload_deps": [
     "internal", "main.go"
   ],
-  "go_main": "main.go"
+  "go_main": "./velero-plugin-for-csi"
 }
