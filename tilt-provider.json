@@ -1,0 +1,9 @@
+{
+  "plugin_name": "velero-plugin-for-csi",
+  "context": ".",
+  "image": "velero/velero-plugin-for-csi",
+  "live_reload_deps": [
+    "internal", "main.go"
+  ],
+  "go_main": "./velero-plugin-for-csi"
+}
