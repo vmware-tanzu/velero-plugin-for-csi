@@ -31,6 +31,9 @@ Below is a listing of plugin versions and respective Velero versions that are co
 | v0.1.2          | v1.5.x         |
 | v0.1.1          | v1.4.x         |
 
+## Filing issues
+
+If you would like to file a GitHub issue for the plugin, please open the issue on the [core Velero repo][103]
 
 ## Kinds of Plugins Included
 
@@ -101,3 +104,4 @@ We are tracking known limitations with the plugins [here][2]
 
 [101]: https://github.com/vmware-tanzu/velero-plugin-for-csi/workflows/Main%20CI/badge.svg
 [102]: https://github.com/vmware-tanzu/velero-plugin-for-csi/actions?query=workflow%3A"Main+CI"
+[103]: https://github.com/vmware-tanzu/velero/issues/new/choose
