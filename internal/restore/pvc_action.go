@@ -97,6 +97,12 @@ func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInp
 
 	resetPVCAnnotations(&pvc, []string{velerov1api.BackupNameLabel, util.VolumeSnapshotLabel})
 
+	// If cross-namespace restore is configured, change the namespace
+	// for PVC object to be restored
+	if val, ok := input.Restore.Spec.NamespaceMapping[pvc.GetNamespace()]; ok {
+		pvc.SetNamespace(val)
+	}
+
 	volumeSnapshotName, ok := pvc.Annotations[util.VolumeSnapshotLabel]
 	if !ok {
 		p.Log.Infof("Skipping PVCRestoreItemAction for PVC %s/%s, PVC does not have a CSI volumesnapshot.", pvc.Namespace, pvc.Name)
