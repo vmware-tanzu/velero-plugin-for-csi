@@ -19,6 +19,7 @@ package util
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -29,11 +30,13 @@ import (
 	snapshotter "github.com/kubernetes-csi/external-snapshotter/v2/pkg/client/clientset/versioned/typed/volumesnapshot/v1beta1"
 	corev1api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 
+	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/restic"
 )
@@ -272,4 +275,18 @@ func IsVolumeSnapshotExists(volSnap *snapshotv1beta1api.VolumeSnapshot, snapshot
 	}
 
 	return exists
+}
+
+func SetVolumeSnapshotContentDeletionPolicy(vscName string, csiClient snapshotter.SnapshotV1beta1Interface) error {
+	pb := []byte(`{"spec":{"deletionPolicy":"Delete"}}`)
+	_, err := csiClient.VolumeSnapshotContents().Patch(context.TODO(), vscName, types.MergePatchType, pb, metav1.PatchOptions{})
+
+	return err
+}
+
+func HasBackupLabel(o *metav1.ObjectMeta, backupName string) bool {
+	if o.Labels == nil || len(strings.TrimSpace(backupName)) == 0 {
+		return false
+	}
+	return o.Labels[velerov1api.BackupNameLabel] == label.GetValidName(backupName)
 }
