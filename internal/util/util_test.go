@@ -17,6 +17,7 @@ limitations under the License.
 package util
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -1339,5 +1340,137 @@ func TestIsVolumeSnapshotExists(t *testing.T) {
 			actual := IsVolumeSnapshotExists(tc.vs, fakeClient.SnapshotV1beta1())
 			assert.Equal(t, tc.expected, actual)
 		})
+	}
+}
+
+func TestSetVolumeSnapshotContentDeletionPolicy(t *testing.T) {
+	testCases := []struct {
+		name         string
+		inputVSCName string
+		objs         []runtime.Object
+		expectError  bool
+	}{
+		{
+			name:         "should update DeletionPolicy of a VSC from retain to delete",
+			inputVSCName: "retainVSC",
+			objs: []runtime.Object{
+				&snapshotv1beta1api.VolumeSnapshotContent{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "retainVSC",
+					},
+					Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{
+						DeletionPolicy: snapshotv1beta1api.VolumeSnapshotContentRetain,
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:         "should be a no-op updating if DeletionPolicy of a VSC is already Delete",
+			inputVSCName: "deleteVSC",
+			objs: []runtime.Object{
+				&snapshotv1beta1api.VolumeSnapshotContent{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "deleteVSC",
+					},
+					Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{
+						DeletionPolicy: snapshotv1beta1api.VolumeSnapshotContentDelete,
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:         "should update DeletionPolicy of a VSC with no DeletionPolicy",
+			inputVSCName: "nothingVSC",
+			objs: []runtime.Object{
+				&snapshotv1beta1api.VolumeSnapshotContent{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "nothingVSC",
+					},
+					Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:         "should return not found error if supplied VSC does not exist",
+			inputVSCName: "does-not-exist",
+			objs:         []runtime.Object{},
+			expectError:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeClient := snapshotFake.NewSimpleClientset(tc.objs...)
+			err := SetVolumeSnapshotContentDeletionPolicy(tc.inputVSCName, fakeClient.SnapshotV1beta1())
+			if tc.expectError {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+				actual, err := fakeClient.SnapshotV1beta1().VolumeSnapshotContents().Get(context.TODO(), tc.inputVSCName, metav1.GetOptions{})
+				assert.Nil(t, err)
+				assert.Equal(t, snapshotv1beta1api.VolumeSnapshotContentDelete, actual.Spec.DeletionPolicy)
+			}
+		})
+	}
+}
+
+func TestIsByBackup(t *testing.T) {
+	testCases := []struct {
+		name       string
+		o          metav1.ObjectMeta
+		backupName string
+		expected   bool
+	}{
+		{
+			name:     "object has no labels",
+			o:        metav1.ObjectMeta{},
+			expected: false,
+		},
+		{
+			name:       "object has no velero backup label",
+			backupName: "csi-b1",
+			o: metav1.ObjectMeta{
+				Labels: map[string]string{
+					"l100": "v100",
+					"l2":   "v200",
+					"l300": "v300",
+				},
+			},
+			expected: false,
+		},
+		{
+			name:       "object has velero backup label but value not equal to backup name",
+			backupName: "csi-b1",
+			o: metav1.ObjectMeta{
+				Labels: map[string]string{
+					"velero.io/backup-name": "does-not-match",
+					"l100":                  "v100",
+					"l2":                    "v200",
+					"l300":                  "v300",
+				},
+			},
+			expected: false,
+		},
+		{
+			name:       "object has backup label with matchin backup name value",
+			backupName: "does-match",
+			o: metav1.ObjectMeta{
+				Labels: map[string]string{
+					"velero.io/backup-name": "does-match",
+					"l100":                  "v100",
+					"l2":                    "v200",
+					"l300":                  "v300",
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		actual := HasBackupLabel(&tc.o, tc.backupName)
+		assert.Equal(t, tc.expected, actual)
 	}
 }
