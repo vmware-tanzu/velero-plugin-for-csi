@@ -27,11 +27,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestResetPVCAnnotations(t *testing.T) {
+func TestRemovePVCAnnotations(t *testing.T) {
 	testCases := []struct {
 		name                string
 		pvc                 corev1api.PersistentVolumeClaim
-		preserveAnnotations []string
+		removeAnnotations   []string
 		expectedAnnotations map[string]string
 	}{
 		{
@@ -41,7 +41,7 @@ func TestResetPVCAnnotations(t *testing.T) {
 					Annotations: nil,
 				},
 			},
-			preserveAnnotations: []string{"foo"},
+			removeAnnotations:   []string{"foo"},
 			expectedAnnotations: map[string]string{},
 		},
 		{
@@ -56,7 +56,7 @@ func TestResetPVCAnnotations(t *testing.T) {
 					},
 				},
 			},
-			preserveAnnotations: []string{"ann1", "ann2", "ann3", "ann4"},
+			removeAnnotations: []string{},
 			expectedAnnotations: map[string]string{
 				"ann1": "ann1-val",
 				"ann2": "ann2-val",
@@ -76,7 +76,7 @@ func TestResetPVCAnnotations(t *testing.T) {
 					},
 				},
 			},
-			preserveAnnotations: []string{},
+			removeAnnotations:   []string{"ann1", "ann2", "ann3", "ann4"},
 			expectedAnnotations: map[string]string{},
 		},
 		{
@@ -95,19 +95,19 @@ func TestResetPVCAnnotations(t *testing.T) {
 					},
 				},
 			},
-			preserveAnnotations: []string{"ann1", "ann2", "ann3", "ann4"},
+			removeAnnotations: []string{"ann1", "ann2", "ann3", "ann4"},
 			expectedAnnotations: map[string]string{
-				"ann1": "ann1-val",
-				"ann2": "ann2-val",
-				"ann3": "ann3-val",
-				"ann4": "ann4-val",
+				"ann5": "ann5-val",
+				"ann6": "ann6-val",
+				"ann7": "ann7-val",
+				"ann8": "ann8-val",
 			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			resetPVCAnnotations(&tc.pvc, tc.preserveAnnotations)
+			removePVCAnnotations(&tc.pvc, tc.removeAnnotations)
 			assert.Equal(t, tc.expectedAnnotations, tc.pvc.Annotations)
 		})
 	}
