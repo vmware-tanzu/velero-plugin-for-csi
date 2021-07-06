@@ -31,8 +31,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
+)
+
+const (
+	AnnBindCompleted      = "pv.kubernetes.io/bind-completed"
+	AnnBoundByController  = "pv.kubernetes.io/bound-by-controller"
+	AnnStorageProvisioner = "volume.beta.kubernetes.io/storage-provisioner"
+	AnnSelectedNode       = "volume.kubernetes.io/selected-node"
 )
 
 // PVCRestoreItemAction is a restore item action plugin for Velero
@@ -48,13 +54,13 @@ func (p *PVCRestoreItemAction) AppliesTo() (velero.ResourceSelector, error) {
 	}, nil
 }
 
-func resetPVCAnnotations(pvc *corev1api.PersistentVolumeClaim, preserve []string) {
+func removePVCAnnotations(pvc *corev1api.PersistentVolumeClaim, remove []string) {
 	if pvc.Annotations == nil {
 		pvc.Annotations = make(map[string]string)
 		return
 	}
 	for k := range pvc.Annotations {
-		if !util.Contains(preserve, k) {
+		if util.Contains(remove, k) {
 			delete(pvc.Annotations, k)
 		}
 	}
@@ -95,7 +101,8 @@ func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInp
 	}
 	p.Log.Infof("Starting PVCRestoreItemAction for PVC %s/%s", pvc.Namespace, pvc.Name)
 
-	resetPVCAnnotations(&pvc, []string{velerov1api.BackupNameLabel, util.VolumeSnapshotLabel})
+	removePVCAnnotations(&pvc,
+		[]string{AnnBindCompleted, AnnBoundByController, AnnStorageProvisioner, AnnSelectedNode})
 
 	// If cross-namespace restore is configured, change the namespace
 	// for PVC object to be restored
