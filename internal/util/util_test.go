@@ -22,8 +22,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
-	snapshotFake "github.com/kubernetes-csi/external-snapshotter/v2/pkg/client/clientset/versioned/fake"
+	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1beta1"
+	snapshotFake "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
 	"github.com/sirupsen/logrus"
 	corev1api "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
