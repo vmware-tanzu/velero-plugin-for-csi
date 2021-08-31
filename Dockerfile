@@ -11,9 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+FROM busybox:1.33.1 AS busybox
 
-FROM debian:stretch-slim
-RUN mkdir /plugins
-ADD velero-* /plugins/
-USER nobody:nogroup
-ENTRYPOINT ["/bin/bash", "-c", "cp /plugins/* /target/."]
+FROM gcr.io/distroless/base-debian10:nonroot
+ADD velero-plugin-for-csi /plugins/
+COPY --from=busybox /bin/cp /bin/cp
+USER nonroot:nonroot
+ENTRYPOINT ["cp", "/plugins/velero-plugin-for-csi", "/target/."]
