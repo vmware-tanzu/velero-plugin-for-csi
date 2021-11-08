@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi8/go-toolset:1.14.7 AS build
+FROM quay.io/konveyor/builder:latest AS builder
 ENV GOPATH=$APP_ROOT
 COPY . $APP_ROOT/src/velero-plugin-for-csi
 WORKDIR $APP_ROOT/src/velero-plugin-for-csi
@@ -7,6 +7,6 @@ RUN CGO_ENABLED=0 GOOS=linux go build -v -o $APP_ROOT/bin/velero-plugin-for-csi 
 
 FROM registry.access.redhat.com/ubi8-minimal
 RUN mkdir /plugins
-COPY --from=build /opt/app-root/bin/velero-plugin-for-csi /plugins/
+COPY --from=builder /opt/app-root/bin/velero-plugin-for-csi /plugins/
 USER nobody:nobody
 ENTRYPOINT ["/bin/bash", "-c", "cp /plugins/* /target/."]

@@ -1,0 +1,57 @@
+os: linux
+services: docker
+dist: focal
+language: go
+go: stable
+
+env:
+  global:
+  - IMAGE: quay.io/konveyor/velero-plugin-for-csi
+  - DEFAULT_BRANCH: main
+  - DOCKERFILE: Dockerfile.ubi
+  - DOCKER_CLI_EXPERIMENTAL: enabled
+  - GOPROXY: https://goproxy.io,direct
+
+before_install:
+- |
+  if [ "${TRAVIS_BRANCH}" == "${DEFAULT_BRANCH}" ]; then
+    export TAG=latest
+  else
+    export TAG="${TRAVIS_BRANCH}"
+  fi
+
+# Builds routinely fail due to download failures inside alternate arch docker containers
+# Here we are downloading outside the docker container and copying the deps in
+# Also use -v for downloads/builds to stop no output failures from lxd env buffering.
+before_script:
+- go mod vendor -v
+- sed -i 's|-mod=mod|-mod=vendor|g' ${DOCKERFILE}
+
+script:
+- docker build -t ${IMAGE}:${TAG}-${TRAVIS_ARCH} -f ${DOCKERFILE} .
+- if [ -n "${QUAY_ROBOT}" ]; then docker login quay.io -u "${QUAY_ROBOT}" -p ${QUAY_TOKEN}; fi
+- if [ -n "${QUAY_ROBOT}" ]; then docker push ${IMAGE}:${TAG}-${TRAVIS_ARCH}; fi
+
+jobs:
+  include:
+  - stage: build images
+    arch: ppc64le
+  - arch: s390x
+  - arch: arm64
+  - arch: amd64
+  - stage: push manifest
+    language: shell
+    arch: amd64
+    before_script: []
+    script:
+    - |
+      if [ -n "${QUAY_ROBOT}" ]; then
+        docker login quay.io -u "${QUAY_ROBOT}" -p ${QUAY_TOKEN}
+        docker manifest create \
+          ${IMAGE}:${TAG} \
+          ${IMAGE}:${TAG}-amd64 \
+          ${IMAGE}:${TAG}-ppc64le \
+          ${IMAGE}:${TAG}-s390x \
+          ${IMAGE}:${TAG}-aarch64
+        docker manifest push ${IMAGE}:${TAG}
+      fi
