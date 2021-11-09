@@ -37,7 +37,7 @@ jobs:
   - stage: build images
     arch: ppc64le
   - arch: s390x
-  - arch: arm64
+  - arch: arm64-graviton2
   - arch: amd64
   - stage: push manifest
     language: shell
