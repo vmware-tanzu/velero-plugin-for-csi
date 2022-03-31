@@ -23,7 +23,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1beta1"
+	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	corev1api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -105,7 +105,7 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 		return nil, nil, errors.Wrap(err, "error getting storage class")
 	}
 	p.Log.Debugf("Fetching volumesnapshot class for %s", storageClass.Provisioner)
-	snapshotClass, err := util.GetVolumeSnapshotClassForStorageClass(storageClass.Provisioner, snapshotClient.SnapshotV1beta1())
+	snapshotClass, err := util.GetVolumeSnapshotClassForStorageClass(storageClass.Provisioner, snapshotClient.SnapshotV1())
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "failed to get volumesnapshotclass for storageclass %s", storageClass.Name)
 	}
@@ -114,12 +114,12 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 	// If deletetionPolicy is not Retain, then in the event of a disaster, the namespace is lost with the volumesnapshot object in it,
 	// the underlying volumesnapshotcontent and the volume snapshot in the storage provider is also deleted.
 	// In such a scenario, the backup objects will be useless as the snapshot handle itself will not be valid.
-	if snapshotClass.DeletionPolicy != snapshotv1beta1api.VolumeSnapshotContentRetain {
+	if snapshotClass.DeletionPolicy != snapshotv1api.VolumeSnapshotContentRetain {
 		p.Log.Warnf("DeletionPolicy on VolumeSnapshotClass %s is not %s; Deletion of VolumeSnapshot objects will lead to deletion of snapshot in the storage provider.",
-			snapshotClass.Name, snapshotv1beta1api.VolumeSnapshotContentRetain)
+			snapshotClass.Name, snapshotv1api.VolumeSnapshotContentRetain)
 	}
 	// Craft the snapshot object to be created
-	snapshot := snapshotv1beta1api.VolumeSnapshot{
+	snapshot := snapshotv1api.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "velero-" + pvc.Name + "-",
 			Namespace:    pvc.Namespace,
@@ -127,15 +127,15 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 				velerov1api.BackupNameLabel: label.GetValidName(backup.Name),
 			},
 		},
-		Spec: snapshotv1beta1api.VolumeSnapshotSpec{
-			Source: snapshotv1beta1api.VolumeSnapshotSource{
+		Spec: snapshotv1api.VolumeSnapshotSpec{
+			Source: snapshotv1api.VolumeSnapshotSource{
 				PersistentVolumeClaimName: &pvc.Name,
 			},
 			VolumeSnapshotClassName: &snapshotClass.Name,
 		},
 	}
 
-	upd, err := snapshotClient.SnapshotV1beta1().VolumeSnapshots(pvc.Namespace).Create(context.TODO(), &snapshot, metav1.CreateOptions{})
+	upd, err := snapshotClient.SnapshotV1().VolumeSnapshots(pvc.Namespace).Create(context.TODO(), &snapshot, metav1.CreateOptions{})
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "error creating volume snapshot")
 	}

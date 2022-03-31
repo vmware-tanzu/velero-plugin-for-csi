@@ -22,12 +22,12 @@ import (
 	"strings"
 	"time"
 
+	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1beta1"
 	snapshotterClientSet "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
-	snapshotter "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/typed/volumesnapshot/v1beta1"
+	snapshotter "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/typed/volumesnapshot/v1"
 	corev1api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -121,7 +121,7 @@ func IsPVCBackedUpByRestic(pvcNamespace, pvcName string, podClient corev1client.
 }
 
 // GetVolumeSnapshotClassForStorageClass returns a VolumeSnapshotClass for the supplied volume provisioner/ driver name.
-func GetVolumeSnapshotClassForStorageClass(provisioner string, snapshotClient snapshotter.SnapshotV1beta1Interface) (*snapshotv1beta1api.VolumeSnapshotClass, error) {
+func GetVolumeSnapshotClassForStorageClass(provisioner string, snapshotClient snapshotter.SnapshotV1Interface) (*snapshotv1api.VolumeSnapshotClass, error) {
 	snapshotClasses, err := snapshotClient.VolumeSnapshotClasses().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, errors.Wrap(err, "error listing volumesnapshot classes")
@@ -129,7 +129,7 @@ func GetVolumeSnapshotClassForStorageClass(provisioner string, snapshotClient sn
 	// We pick the volumesnapshotclass that matches the CSI driver name and has a 'velero.io/csi-volumesnapshot-class'
 	// label. This allows multiple VolumesnapshotClasses for the same driver with different values for the
 	// other fields in the spec.
-	// https://pkg.go.dev/github.com/kubernetes-csi/external-snapshotter/v2@v2.0.1/pkg/apis/volumesnapshot/v1beta1?tab=doc#VolumeSnapshotClass
+	// https://github.com/kubernetes-csi/external-snapshotter/blob/release-4.2/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml
 	for _, sc := range snapshotClasses.Items {
 		_, hasLabelSelector := sc.Labels[VolumeSnapshotClassSelectorLabel]
 		if sc.Driver == provisioner && hasLabelSelector {
@@ -140,7 +140,7 @@ func GetVolumeSnapshotClassForStorageClass(provisioner string, snapshotClient sn
 }
 
 // GetVolumeSnapshotContentForVolumeSnapshot returns the volumesnapshotcontent object associated with the volumesnapshot
-func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1beta1api.VolumeSnapshot, snapshotClient snapshotter.SnapshotV1beta1Interface, log logrus.FieldLogger, shouldWait bool) (*snapshotv1beta1api.VolumeSnapshotContent, error) {
+func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1api.VolumeSnapshot, snapshotClient snapshotter.SnapshotV1Interface, log logrus.FieldLogger, shouldWait bool) (*snapshotv1api.VolumeSnapshotContent, error) {
 	if !shouldWait {
 		if volSnap.Status == nil || volSnap.Status.BoundVolumeSnapshotContentName == nil {
 			// volumesnapshot hasn't been reconciled and we're not waiting for it.
@@ -157,7 +157,7 @@ func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1beta1api.Volum
 	// TODO: make this timeout configurable.
 	timeout := 10 * time.Minute
 	interval := 5 * time.Second
-	var snapshotContent *snapshotv1beta1api.VolumeSnapshotContent
+	var snapshotContent *snapshotv1api.VolumeSnapshotContent
 
 	err := wait.PollImmediate(interval, timeout, func() (bool, error) {
 		vs, err := snapshotClient.VolumeSnapshots(volSnap.Namespace).Get(context.TODO(), volSnap.Name, metav1.GetOptions{})
@@ -219,7 +219,7 @@ func GetClients() (*kubernetes.Clientset, *snapshotterClientSet.Clientset, error
 }
 
 // IsVolumeSnapshotClassHasListerSecret returns whether a volumesnapshotclass has a snapshotlister secret
-func IsVolumeSnapshotClassHasListerSecret(vc *snapshotv1beta1api.VolumeSnapshotClass) bool {
+func IsVolumeSnapshotClassHasListerSecret(vc *snapshotv1api.VolumeSnapshotClass) bool {
 	// https://github.com/kubernetes-csi/external-snapshotter/blob/master/pkg/utils/util.go#L59-L60
 	// There is no release w/ these constants exported. Using the strings for now.
 	_, nameExists := vc.Annotations[PrefixedSnapshotterListSecretNameKey]
@@ -228,7 +228,7 @@ func IsVolumeSnapshotClassHasListerSecret(vc *snapshotv1beta1api.VolumeSnapshotC
 }
 
 // IsVolumeSnapshotContentHasDeleteSecret returns whether a volumesnapshotcontent has a deletesnapshot secret
-func IsVolumeSnapshotContentHasDeleteSecret(vsc *snapshotv1beta1api.VolumeSnapshotContent) bool {
+func IsVolumeSnapshotContentHasDeleteSecret(vsc *snapshotv1api.VolumeSnapshotContent) bool {
 	// https://github.com/kubernetes-csi/external-snapshotter/blob/master/pkg/utils/util.go#L56-L57
 	// use exported constants in the next release
 	_, nameExists := vsc.Annotations[PrefixedSnapshotterSecretNameKey]
@@ -238,7 +238,7 @@ func IsVolumeSnapshotContentHasDeleteSecret(vsc *snapshotv1beta1api.VolumeSnapsh
 
 // IsVolumeSnapshotHasVSCDeleteSecret returns whether a volumesnapshot should set the deletesnapshot secret
 // for the static volumesnapshotcontent that is created on restore
-func IsVolumeSnapshotHasVSCDeleteSecret(vs *snapshotv1beta1api.VolumeSnapshot) bool {
+func IsVolumeSnapshotHasVSCDeleteSecret(vs *snapshotv1api.VolumeSnapshot) bool {
 	_, nameExists := vs.Annotations[CSIDeleteSnapshotSecretName]
 	_, nsExists := vs.Annotations[CSIDeleteSnapshotSecretNamespace]
 	return nameExists && nsExists
@@ -265,7 +265,7 @@ func AddLabels(o *metav1.ObjectMeta, vals map[string]string) {
 }
 
 // IsVolumeSnapshotExists returns whether a specific volumesnapshot object exists.
-func IsVolumeSnapshotExists(volSnap *snapshotv1beta1api.VolumeSnapshot, snapshotClient snapshotter.SnapshotV1beta1Interface) bool {
+func IsVolumeSnapshotExists(volSnap *snapshotv1api.VolumeSnapshot, snapshotClient snapshotter.SnapshotV1Interface) bool {
 	exists := false
 	if volSnap != nil {
 		vs, err := snapshotClient.VolumeSnapshots(volSnap.Namespace).Get(context.TODO(), volSnap.Name, metav1.GetOptions{})
@@ -277,7 +277,7 @@ func IsVolumeSnapshotExists(volSnap *snapshotv1beta1api.VolumeSnapshot, snapshot
 	return exists
 }
 
-func SetVolumeSnapshotContentDeletionPolicy(vscName string, csiClient snapshotter.SnapshotV1beta1Interface) error {
+func SetVolumeSnapshotContentDeletionPolicy(vscName string, csiClient snapshotter.SnapshotV1Interface) error {
 	pb := []byte(`{"spec":{"deletionPolicy":"Delete"}}`)
 	_, err := csiClient.VolumeSnapshotContents().Patch(context.TODO(), vscName, types.MergePatchType, pb, metav1.PatchOptions{})
 

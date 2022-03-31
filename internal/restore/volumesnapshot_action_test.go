@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1beta1"
+	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -34,18 +34,18 @@ var (
 func TestResetVolumeSnapshotSpecForRestore(t *testing.T) {
 	testCases := []struct {
 		name    string
-		vs      snapshotv1beta1api.VolumeSnapshot
+		vs      snapshotv1api.VolumeSnapshot
 		vscName string
 	}{
 		{
 			name: "should reset spec as expected",
-			vs: snapshotv1beta1api.VolumeSnapshot{
+			vs: snapshotv1api.VolumeSnapshot{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-vs",
 					Namespace: "test-ns",
 				},
-				Spec: snapshotv1beta1api.VolumeSnapshotSpec{
-					Source: snapshotv1beta1api.VolumeSnapshotSource{
+				Spec: snapshotv1api.VolumeSnapshotSpec{
+					Source: snapshotv1api.VolumeSnapshotSource{
 						PersistentVolumeClaimName: &testPVC,
 					},
 					VolumeSnapshotClassName: &testSnapClass,
@@ -55,13 +55,13 @@ func TestResetVolumeSnapshotSpecForRestore(t *testing.T) {
 		},
 		{
 			name: "should reset spec and overwriting value for Source.VolumeSnapshotContentName",
-			vs: snapshotv1beta1api.VolumeSnapshot{
+			vs: snapshotv1api.VolumeSnapshot{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-vs",
 					Namespace: "test-ns",
 				},
-				Spec: snapshotv1beta1api.VolumeSnapshotSpec{
-					Source: snapshotv1beta1api.VolumeSnapshotSource{
+				Spec: snapshotv1api.VolumeSnapshotSpec{
+					Source: snapshotv1api.VolumeSnapshotSource{
 						VolumeSnapshotContentName: &randText,
 					},
 					VolumeSnapshotClassName: &testSnapClass,

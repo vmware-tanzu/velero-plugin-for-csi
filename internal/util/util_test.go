@@ -22,7 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1beta1"
+	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	snapshotFake "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
 	"github.com/sirupsen/logrus"
 	corev1api "k8s.io/api/core/v1"
@@ -622,7 +622,7 @@ func TestIsPVCBackedUpByRestic(t *testing.T) {
 }
 
 func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
-	hostpathClass := &snapshotv1beta1api.VolumeSnapshotClass{
+	hostpathClass := &snapshotv1api.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "hostpath",
 			Labels: map[string]string{
@@ -632,7 +632,7 @@ func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
 		Driver: "hostpath.csi.k8s.io",
 	}
 
-	fooClass := &snapshotv1beta1api.VolumeSnapshotClass{
+	fooClass := &snapshotv1api.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "foo",
 			Labels: map[string]string{
@@ -642,7 +642,7 @@ func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
 		Driver: "foo.csi.k8s.io",
 	}
 
-	barClass := &snapshotv1beta1api.VolumeSnapshotClass{
+	barClass := &snapshotv1api.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "bar",
 			Labels: map[string]string{
@@ -652,7 +652,7 @@ func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
 		Driver: "bar.csi.k8s.io",
 	}
 
-	bazClass := &snapshotv1beta1api.VolumeSnapshotClass{
+	bazClass := &snapshotv1api.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "baz",
 		},
@@ -665,7 +665,7 @@ func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
 	testCases := []struct {
 		name        string
 		driverName  string
-		expectedVSC *snapshotv1beta1api.VolumeSnapshotClass
+		expectedVSC *snapshotv1api.VolumeSnapshotClass
 		expectError bool
 	}{
 		{
@@ -702,7 +702,7 @@ func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualVSC, actualError := GetVolumeSnapshotClassForStorageClass(tc.driverName, fakeClient.SnapshotV1beta1())
+			actualVSC, actualError := GetVolumeSnapshotClassForStorageClass(tc.driverName, fakeClient.SnapshotV1())
 
 			if tc.expectError {
 				assert.NotNil(t, actualError)
@@ -719,102 +719,102 @@ func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
 func TestGetVolumeSnapshotContentForVolumeSnapshot(t *testing.T) {
 	vscName := "snapcontent-7d1bdbd1-d10d-439c-8d8e-e1c2565ddc53"
 	snapshotHandle := "snapshot-handle"
-	vscObj := &snapshotv1beta1api.VolumeSnapshotContent{
+	vscObj := &snapshotv1api.VolumeSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: vscName,
 		},
-		Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{
+		Spec: snapshotv1api.VolumeSnapshotContentSpec{
 			VolumeSnapshotRef: corev1api.ObjectReference{
 				Name:       "vol-snap-1",
-				APIVersion: snapshotv1beta1api.SchemeGroupVersion.String(),
+				APIVersion: snapshotv1api.SchemeGroupVersion.String(),
 			},
 		},
-		Status: &snapshotv1beta1api.VolumeSnapshotContentStatus{
+		Status: &snapshotv1api.VolumeSnapshotContentStatus{
 			SnapshotHandle: &snapshotHandle,
 		},
 	}
-	validVS := &snapshotv1beta1api.VolumeSnapshot{
+	validVS := &snapshotv1api.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "vs",
 			Namespace: "default",
 		},
-		Status: &snapshotv1beta1api.VolumeSnapshotStatus{
+		Status: &snapshotv1api.VolumeSnapshotStatus{
 			BoundVolumeSnapshotContentName: &vscName,
 		},
 	}
 
 	notFound := "does-not-exist"
-	vsWithVSCNotFound := &snapshotv1beta1api.VolumeSnapshot{
+	vsWithVSCNotFound := &snapshotv1api.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      notFound,
 			Namespace: "default",
 		},
-		Status: &snapshotv1beta1api.VolumeSnapshotStatus{
+		Status: &snapshotv1api.VolumeSnapshotStatus{
 			BoundVolumeSnapshotContentName: &notFound,
 		},
 	}
 
-	vsWithNilStatus := &snapshotv1beta1api.VolumeSnapshot{
+	vsWithNilStatus := &snapshotv1api.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "nil-status-vs",
 			Namespace: "default",
 		},
 		Status: nil,
 	}
-	vsWithNilStatusField := &snapshotv1beta1api.VolumeSnapshot{
+	vsWithNilStatusField := &snapshotv1api.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "nil-status-field-vs",
 			Namespace: "default",
 		},
-		Status: &snapshotv1beta1api.VolumeSnapshotStatus{
+		Status: &snapshotv1api.VolumeSnapshotStatus{
 			BoundVolumeSnapshotContentName: nil,
 		},
 	}
 
 	nilStatusVsc := "nil-status-vsc"
-	vscWithNilStatus := &snapshotv1beta1api.VolumeSnapshotContent{
+	vscWithNilStatus := &snapshotv1api.VolumeSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: nilStatusVsc,
 		},
-		Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{
+		Spec: snapshotv1api.VolumeSnapshotContentSpec{
 			VolumeSnapshotRef: corev1api.ObjectReference{
 				Name:       "vol-snap-1",
-				APIVersion: snapshotv1beta1api.SchemeGroupVersion.String(),
+				APIVersion: snapshotv1api.SchemeGroupVersion.String(),
 			},
 		},
 		Status: nil,
 	}
-	vsForNilStatusVsc := &snapshotv1beta1api.VolumeSnapshot{
+	vsForNilStatusVsc := &snapshotv1api.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "vs-for-nil-status-vsc",
 			Namespace: "default",
 		},
-		Status: &snapshotv1beta1api.VolumeSnapshotStatus{
+		Status: &snapshotv1api.VolumeSnapshotStatus{
 			BoundVolumeSnapshotContentName: &nilStatusVsc,
 		},
 	}
 
 	nilStatusFieldVsc := "nil-status-field-vsc"
-	vscWithNilStatusField := &snapshotv1beta1api.VolumeSnapshotContent{
+	vscWithNilStatusField := &snapshotv1api.VolumeSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: nilStatusFieldVsc,
 		},
-		Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{
+		Spec: snapshotv1api.VolumeSnapshotContentSpec{
 			VolumeSnapshotRef: corev1api.ObjectReference{
 				Name:       "vol-snap-1",
-				APIVersion: snapshotv1beta1api.SchemeGroupVersion.String(),
+				APIVersion: snapshotv1api.SchemeGroupVersion.String(),
 			},
 		},
-		Status: &snapshotv1beta1api.VolumeSnapshotContentStatus{
+		Status: &snapshotv1api.VolumeSnapshotContentStatus{
 			SnapshotHandle: nil,
 		},
 	}
-	vsForNilStatusFieldVsc := &snapshotv1beta1api.VolumeSnapshot{
+	vsForNilStatusFieldVsc := &snapshotv1api.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "vs-for-nil-status-field",
 			Namespace: "default",
 		},
-		Status: &snapshotv1beta1api.VolumeSnapshotStatus{
+		Status: &snapshotv1api.VolumeSnapshotStatus{
 			BoundVolumeSnapshotContentName: &nilStatusFieldVsc,
 		},
 	}
@@ -823,8 +823,8 @@ func TestGetVolumeSnapshotContentForVolumeSnapshot(t *testing.T) {
 	fakeClient := snapshotFake.NewSimpleClientset(objs...)
 	testCases := []struct {
 		name        string
-		volSnap     *snapshotv1beta1api.VolumeSnapshot
-		exepctedVSC *snapshotv1beta1api.VolumeSnapshotContent
+		volSnap     *snapshotv1api.VolumeSnapshot
+		exepctedVSC *snapshotv1api.VolumeSnapshotContent
 		wait        bool
 		expectError bool
 	}{
@@ -847,12 +847,12 @@ func TestGetVolumeSnapshotContentForVolumeSnapshot(t *testing.T) {
 			wait:        true,
 			exepctedVSC: nil,
 			expectError: true,
-			volSnap: &snapshotv1beta1api.VolumeSnapshot{
+			volSnap: &snapshotv1api.VolumeSnapshot{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "not-found",
 					Namespace: "default",
 				},
-				Status: &snapshotv1beta1api.VolumeSnapshotStatus{
+				Status: &snapshotv1api.VolumeSnapshotStatus{
 					BoundVolumeSnapshotContentName: &nilStatusVsc,
 				},
 			},
@@ -896,7 +896,7 @@ func TestGetVolumeSnapshotContentForVolumeSnapshot(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualVSC, actualError := GetVolumeSnapshotContentForVolumeSnapshot(tc.volSnap, fakeClient.SnapshotV1beta1(), logrus.New().WithField("fake", "test"), tc.wait)
+			actualVSC, actualError := GetVolumeSnapshotContentForVolumeSnapshot(tc.volSnap, fakeClient.SnapshotV1(), logrus.New().WithField("fake", "test"), tc.wait)
 			if tc.expectError && actualError == nil {
 				assert.NotNil(t, actualError)
 				assert.Nil(t, actualVSC)
@@ -910,12 +910,12 @@ func TestGetVolumeSnapshotContentForVolumeSnapshot(t *testing.T) {
 func TestIsVolumeSnapshotClassHasListerSecret(t *testing.T) {
 	testCases := []struct {
 		name      string
-		snapClass snapshotv1beta1api.VolumeSnapshotClass
+		snapClass snapshotv1api.VolumeSnapshotClass
 		expected  bool
 	}{
 		{
 			name: "should find both annotations",
-			snapClass: snapshotv1beta1api.VolumeSnapshotClass{
+			snapClass: snapshotv1api.VolumeSnapshotClass{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "class-1",
 					Annotations: map[string]string{
@@ -928,7 +928,7 @@ func TestIsVolumeSnapshotClassHasListerSecret(t *testing.T) {
 		},
 		{
 			name: "should not find both annotations name is missing",
-			snapClass: snapshotv1beta1api.VolumeSnapshotClass{
+			snapClass: snapshotv1api.VolumeSnapshotClass{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "class-1",
 					Annotations: map[string]string{
@@ -941,7 +941,7 @@ func TestIsVolumeSnapshotClassHasListerSecret(t *testing.T) {
 		},
 		{
 			name: "should not find both annotations namespace is missing",
-			snapClass: snapshotv1beta1api.VolumeSnapshotClass{
+			snapClass: snapshotv1api.VolumeSnapshotClass{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "class-1",
 					Annotations: map[string]string{
@@ -954,7 +954,7 @@ func TestIsVolumeSnapshotClassHasListerSecret(t *testing.T) {
 		},
 		{
 			name: "should not find expected annotation non-empty annotation",
-			snapClass: snapshotv1beta1api.VolumeSnapshotClass{
+			snapClass: snapshotv1api.VolumeSnapshotClass{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "class-2",
 					Annotations: map[string]string{
@@ -967,7 +967,7 @@ func TestIsVolumeSnapshotClassHasListerSecret(t *testing.T) {
 		},
 		{
 			name: "should not find expected annotation nil annotation",
-			snapClass: snapshotv1beta1api.VolumeSnapshotClass{
+			snapClass: snapshotv1api.VolumeSnapshotClass{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        "class-3",
 					Annotations: nil,
@@ -977,7 +977,7 @@ func TestIsVolumeSnapshotClassHasListerSecret(t *testing.T) {
 		},
 		{
 			name: "should not find expected annotation empty annotation",
-			snapClass: snapshotv1beta1api.VolumeSnapshotClass{
+			snapClass: snapshotv1api.VolumeSnapshotClass{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        "class-3",
 					Annotations: map[string]string{},
@@ -998,12 +998,12 @@ func TestIsVolumeSnapshotClassHasListerSecret(t *testing.T) {
 func TestIsVolumeSnapshotContentHasDeleteSecret(t *testing.T) {
 	testCases := []struct {
 		name     string
-		vsc      snapshotv1beta1api.VolumeSnapshotContent
+		vsc      snapshotv1api.VolumeSnapshotContent
 		expected bool
 	}{
 		{
 			name: "should find both annotations",
-			vsc: snapshotv1beta1api.VolumeSnapshotContent{
+			vsc: snapshotv1api.VolumeSnapshotContent{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "vsc-1",
 					Annotations: map[string]string{
@@ -1016,7 +1016,7 @@ func TestIsVolumeSnapshotContentHasDeleteSecret(t *testing.T) {
 		},
 		{
 			name: "should not find both annotations name is missing",
-			vsc: snapshotv1beta1api.VolumeSnapshotContent{
+			vsc: snapshotv1api.VolumeSnapshotContent{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "vsc-2",
 					Annotations: map[string]string{
@@ -1029,7 +1029,7 @@ func TestIsVolumeSnapshotContentHasDeleteSecret(t *testing.T) {
 		},
 		{
 			name: "should not find both annotations namespace is missing",
-			vsc: snapshotv1beta1api.VolumeSnapshotContent{
+			vsc: snapshotv1api.VolumeSnapshotContent{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "vsc-3",
 					Annotations: map[string]string{
@@ -1042,7 +1042,7 @@ func TestIsVolumeSnapshotContentHasDeleteSecret(t *testing.T) {
 		},
 		{
 			name: "should not find expected annotation non-empty annotation",
-			vsc: snapshotv1beta1api.VolumeSnapshotContent{
+			vsc: snapshotv1api.VolumeSnapshotContent{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "vsc-4",
 					Annotations: map[string]string{
@@ -1055,7 +1055,7 @@ func TestIsVolumeSnapshotContentHasDeleteSecret(t *testing.T) {
 		},
 		{
 			name: "should not find expected annotation empty annotation",
-			vsc: snapshotv1beta1api.VolumeSnapshotContent{
+			vsc: snapshotv1api.VolumeSnapshotContent{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        "vsc-5",
 					Annotations: map[string]string{},
@@ -1065,7 +1065,7 @@ func TestIsVolumeSnapshotContentHasDeleteSecret(t *testing.T) {
 		},
 		{
 			name: "should not find expected annotation nil annotation",
-			vsc: snapshotv1beta1api.VolumeSnapshotContent{
+			vsc: snapshotv1api.VolumeSnapshotContent{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        "vsc-6",
 					Annotations: nil,
@@ -1086,12 +1086,12 @@ func TestIsVolumeSnapshotContentHasDeleteSecret(t *testing.T) {
 func TestIsVolumeSnapshotHasVSCDeleteSecret(t *testing.T) {
 	testCases := []struct {
 		name     string
-		vs       snapshotv1beta1api.VolumeSnapshot
+		vs       snapshotv1api.VolumeSnapshot
 		expected bool
 	}{
 		{
 			name: "should find both annotations",
-			vs: snapshotv1beta1api.VolumeSnapshot{
+			vs: snapshotv1api.VolumeSnapshot{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "vs-1",
 					Annotations: map[string]string{
@@ -1104,7 +1104,7 @@ func TestIsVolumeSnapshotHasVSCDeleteSecret(t *testing.T) {
 		},
 		{
 			name: "should not find both annotations name is missing",
-			vs: snapshotv1beta1api.VolumeSnapshot{
+			vs: snapshotv1api.VolumeSnapshot{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "vs-1",
 					Annotations: map[string]string{
@@ -1117,7 +1117,7 @@ func TestIsVolumeSnapshotHasVSCDeleteSecret(t *testing.T) {
 		},
 		{
 			name: "should not find both annotations namespace is missing",
-			vs: snapshotv1beta1api.VolumeSnapshot{
+			vs: snapshotv1api.VolumeSnapshot{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "vs-1",
 					Annotations: map[string]string{
@@ -1130,7 +1130,7 @@ func TestIsVolumeSnapshotHasVSCDeleteSecret(t *testing.T) {
 		},
 		{
 			name: "should not find annotation non-empty annotation",
-			vs: snapshotv1beta1api.VolumeSnapshot{
+			vs: snapshotv1api.VolumeSnapshot{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "vs-1",
 					Annotations: map[string]string{
@@ -1143,7 +1143,7 @@ func TestIsVolumeSnapshotHasVSCDeleteSecret(t *testing.T) {
 		},
 		{
 			name: "should not find annotation empty annotation",
-			vs: snapshotv1beta1api.VolumeSnapshot{
+			vs: snapshotv1api.VolumeSnapshot{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        "vs-1",
 					Annotations: map[string]string{},
@@ -1153,7 +1153,7 @@ func TestIsVolumeSnapshotHasVSCDeleteSecret(t *testing.T) {
 		},
 		{
 			name: "should not find annotation nil annotation",
-			vs: snapshotv1beta1api.VolumeSnapshot{
+			vs: snapshotv1api.VolumeSnapshot{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        "vs-1",
 					Annotations: nil,
@@ -1298,13 +1298,13 @@ func TestAddLabels(t *testing.T) {
 }
 
 func TestIsVolumeSnapshotExists(t *testing.T) {
-	vsExists := &snapshotv1beta1api.VolumeSnapshot{
+	vsExists := &snapshotv1api.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "vs-exists",
 			Namespace: "default",
 		},
 	}
-	vsNotExists := &snapshotv1beta1api.VolumeSnapshot{
+	vsNotExists := &snapshotv1api.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "vs-does-not-exists",
 			Namespace: "default",
@@ -1316,7 +1316,7 @@ func TestIsVolumeSnapshotExists(t *testing.T) {
 	testCases := []struct {
 		name     string
 		expected bool
-		vs       *snapshotv1beta1api.VolumeSnapshot
+		vs       *snapshotv1api.VolumeSnapshot
 	}{
 		{
 			name:     "should find existing VolumeSnapshot object",
@@ -1337,7 +1337,7 @@ func TestIsVolumeSnapshotExists(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := IsVolumeSnapshotExists(tc.vs, fakeClient.SnapshotV1beta1())
+			actual := IsVolumeSnapshotExists(tc.vs, fakeClient.SnapshotV1())
 			assert.Equal(t, tc.expected, actual)
 		})
 	}
@@ -1354,12 +1354,12 @@ func TestSetVolumeSnapshotContentDeletionPolicy(t *testing.T) {
 			name:         "should update DeletionPolicy of a VSC from retain to delete",
 			inputVSCName: "retainVSC",
 			objs: []runtime.Object{
-				&snapshotv1beta1api.VolumeSnapshotContent{
+				&snapshotv1api.VolumeSnapshotContent{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "retainVSC",
 					},
-					Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{
-						DeletionPolicy: snapshotv1beta1api.VolumeSnapshotContentRetain,
+					Spec: snapshotv1api.VolumeSnapshotContentSpec{
+						DeletionPolicy: snapshotv1api.VolumeSnapshotContentRetain,
 					},
 				},
 			},
@@ -1369,12 +1369,12 @@ func TestSetVolumeSnapshotContentDeletionPolicy(t *testing.T) {
 			name:         "should be a no-op updating if DeletionPolicy of a VSC is already Delete",
 			inputVSCName: "deleteVSC",
 			objs: []runtime.Object{
-				&snapshotv1beta1api.VolumeSnapshotContent{
+				&snapshotv1api.VolumeSnapshotContent{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "deleteVSC",
 					},
-					Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{
-						DeletionPolicy: snapshotv1beta1api.VolumeSnapshotContentDelete,
+					Spec: snapshotv1api.VolumeSnapshotContentSpec{
+						DeletionPolicy: snapshotv1api.VolumeSnapshotContentDelete,
 					},
 				},
 			},
@@ -1384,11 +1384,11 @@ func TestSetVolumeSnapshotContentDeletionPolicy(t *testing.T) {
 			name:         "should update DeletionPolicy of a VSC with no DeletionPolicy",
 			inputVSCName: "nothingVSC",
 			objs: []runtime.Object{
-				&snapshotv1beta1api.VolumeSnapshotContent{
+				&snapshotv1api.VolumeSnapshotContent{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "nothingVSC",
 					},
-					Spec: snapshotv1beta1api.VolumeSnapshotContentSpec{},
+					Spec: snapshotv1api.VolumeSnapshotContentSpec{},
 				},
 			},
 			expectError: false,
@@ -1404,14 +1404,14 @@ func TestSetVolumeSnapshotContentDeletionPolicy(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeClient := snapshotFake.NewSimpleClientset(tc.objs...)
-			err := SetVolumeSnapshotContentDeletionPolicy(tc.inputVSCName, fakeClient.SnapshotV1beta1())
+			err := SetVolumeSnapshotContentDeletionPolicy(tc.inputVSCName, fakeClient.SnapshotV1())
 			if tc.expectError {
 				assert.NotNil(t, err)
 			} else {
 				assert.Nil(t, err)
-				actual, err := fakeClient.SnapshotV1beta1().VolumeSnapshotContents().Get(context.TODO(), tc.inputVSCName, metav1.GetOptions{})
+				actual, err := fakeClient.SnapshotV1().VolumeSnapshotContents().Get(context.TODO(), tc.inputVSCName, metav1.GetOptions{})
 				assert.Nil(t, err)
-				assert.Equal(t, snapshotv1beta1api.VolumeSnapshotContentDelete, actual.Spec.DeletionPolicy)
+				assert.Equal(t, snapshotv1api.VolumeSnapshotContentDelete, actual.Spec.DeletionPolicy)
 			}
 		})
 	}

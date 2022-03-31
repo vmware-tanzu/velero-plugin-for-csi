@@ -12,7 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1beta1"
+	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 )
 
 // VolumeSnapshotContentDeleteItemAction is a restore item action plugin for Velero
@@ -31,7 +31,7 @@ func (p *VolumeSnapshotContentDeleteItemAction) AppliesTo() (velero.ResourceSele
 func (p *VolumeSnapshotContentDeleteItemAction) Execute(input *velero.DeleteItemActionExecuteInput) error {
 	p.Log.Info("Starting VolumeSnapshotContentDeleteItemAction")
 
-	var snapCont snapshotv1beta1api.VolumeSnapshotContent
+	var snapCont snapshotv1api.VolumeSnapshotContent
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &snapCont); err != nil {
 		return errors.Wrapf(err, "failed to convert input.Item from unstructured")
 	}
@@ -51,7 +51,7 @@ func (p *VolumeSnapshotContentDeleteItemAction) Execute(input *velero.DeleteItem
 		return errors.WithStack(err)
 	}
 
-	err = util.SetVolumeSnapshotContentDeletionPolicy(snapCont.Name, snapClient.SnapshotV1beta1())
+	err = util.SetVolumeSnapshotContentDeletionPolicy(snapCont.Name, snapClient.SnapshotV1())
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			p.Log.Infof("VolumeSnapshotContent %s not found", snapCont.Name)
@@ -60,7 +60,7 @@ func (p *VolumeSnapshotContentDeleteItemAction) Execute(input *velero.DeleteItem
 		return errors.Wrapf(err, fmt.Sprintf("failed to set DeletionPolicy on volumesnapshotcontent %s. Skipping deletion", snapCont.Name))
 	}
 
-	err = snapClient.SnapshotV1beta1().VolumeSnapshotContents().Delete(context.TODO(), snapCont.Name, metav1.DeleteOptions{})
+	err = snapClient.SnapshotV1().VolumeSnapshotContents().Delete(context.TODO(), snapCont.Name, metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		p.Log.Infof("VolumeSnapshotContent %s not found", snapCont.Name)
 		return err

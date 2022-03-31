@@ -20,10 +20,10 @@ import (
 	"context"
 	"fmt"
 
+	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1beta1"
 	corev1api "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -71,7 +71,7 @@ func resetPVCSpec(pvc *corev1api.PersistentVolumeClaim, vsName string) {
 	// So clear out the volume name, which is a ref to the PV
 	pvc.Spec.VolumeName = ""
 	pvc.Spec.DataSource = &corev1api.TypedLocalObjectReference{
-		APIGroup: &snapshotv1beta1api.SchemeGroupVersion.Group,
+		APIGroup: &snapshotv1api.SchemeGroupVersion.Group,
 		Kind:     "VolumeSnapshot",
 		Name:     vsName,
 	}
@@ -123,7 +123,7 @@ func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInp
 		return nil, errors.WithStack(err)
 	}
 
-	vs, err := snapClient.SnapshotV1beta1().VolumeSnapshots(pvc.Namespace).Get(context.TODO(), volumeSnapshotName, metav1.GetOptions{})
+	vs, err := snapClient.SnapshotV1().VolumeSnapshots(pvc.Namespace).Get(context.TODO(), volumeSnapshotName, metav1.GetOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, fmt.Sprintf("Failed to get Volumesnapshot %s/%s to restore PVC %s/%s", pvc.Namespace, volumeSnapshotName, pvc.Namespace, pvc.Name))
 	}
