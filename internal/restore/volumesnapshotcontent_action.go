@@ -20,7 +20,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1beta1"
+	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -45,7 +45,7 @@ func (p *VolumeSnapshotContentRestoreItemAction) AppliesTo() (velero.ResourceSel
 // additional items to restore.
 func (p *VolumeSnapshotContentRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
 	p.Log.Info("Starting VolumeSnapshotContentRestoreItemAction")
-	var snapCont snapshotv1beta1api.VolumeSnapshotContent
+	var snapCont snapshotv1api.VolumeSnapshotContent
 
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &snapCont); err != nil {
 		return &velero.RestoreItemActionExecuteOutput{}, errors.Wrapf(err, "failed to convert input.Item from unstructured")

@@ -20,7 +20,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1beta1"
+	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -48,7 +48,7 @@ func (p *VolumeSnapshotClassBackupItemAction) AppliesTo() (velero.ResourceSelect
 func (p *VolumeSnapshotClassBackupItemAction) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
 	p.Log.Infof("Executing VolumeSnapshotClassBackupItemAction")
 
-	var snapClass snapshotv1beta1api.VolumeSnapshotClass
+	var snapClass snapshotv1api.VolumeSnapshotClass
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &snapClass); err != nil {
 		return nil, nil, errors.WithStack(err)
 	}

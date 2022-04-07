@@ -23,7 +23,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1beta1"
+	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -57,7 +57,7 @@ func (p *VolumeSnapshotBackupItemAction) AppliesTo() (velero.ResourceSelector, e
 func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
 	p.Log.Infof("Executing VolumeSnapshotBackupItemAction")
 
-	var vs snapshotv1beta1api.VolumeSnapshot
+	var vs snapshotv1api.VolumeSnapshot
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &vs); err != nil {
 		return nil, nil, errors.WithStack(err)
 	}
@@ -90,7 +90,7 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 
 	p.Log.Infof("Getting VolumesnapshotContent for Volumesnapshot %s/%s", vs.Namespace, vs.Name)
 
-	vsc, err := util.GetVolumeSnapshotContentForVolumeSnapshot(&vs, snapshotClient.SnapshotV1beta1(), p.Log, backupOngoing)
+	vsc, err := util.GetVolumeSnapshotContentForVolumeSnapshot(&vs, snapshotClient.SnapshotV1(), p.Log, backupOngoing)
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
 	}
@@ -137,7 +137,7 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 			// Further, we want to add this label only on volumesnapshotcontents that were created during an ongoing velero backup.
 
 			pb := []byte(fmt.Sprintf(`{"metadata":{"labels":{"%s":"%s"}}}`, velerov1api.BackupNameLabel, label.GetValidName(backup.Name)))
-			if _, vscPatchError := snapshotClient.SnapshotV1beta1().VolumeSnapshotContents().Patch(context.TODO(), vsc.Name, types.MergePatchType, pb, metav1.PatchOptions{}); vscPatchError != nil {
+			if _, vscPatchError := snapshotClient.SnapshotV1().VolumeSnapshotContents().Patch(context.TODO(), vsc.Name, types.MergePatchType, pb, metav1.PatchOptions{}); vscPatchError != nil {
 				p.Log.Warnf("Failed to patch volumesnapshotcontent %s: %v", vsc.Name, vscPatchError)
 			}
 		}

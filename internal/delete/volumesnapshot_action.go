@@ -11,7 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1beta1"
+	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
@@ -32,7 +32,7 @@ func (p *VolumeSnapshotDeleteItemAction) AppliesTo() (velero.ResourceSelector, e
 func (p *VolumeSnapshotDeleteItemAction) Execute(input *velero.DeleteItemActionExecuteInput) error {
 	p.Log.Info("Starting VolumeSnapshotDeleteItemAction for volumeSnapshot")
 
-	var vs snapshotv1beta1api.VolumeSnapshot
+	var vs snapshotv1api.VolumeSnapshot
 
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &vs); err != nil {
 		return errors.Wrapf(err, "failed to convert input.Item from unstructured")
@@ -54,7 +54,7 @@ func (p *VolumeSnapshotDeleteItemAction) Execute(input *velero.DeleteItemActionE
 	if vs.Status != nil && vs.Status.BoundVolumeSnapshotContentName != nil {
 		// we patch the DeletionPolicy of the volumesnapshotcontent to set it to Delete.
 		// This ensures that the volume snapshot in the storage provider is also deleted.
-		err := util.SetVolumeSnapshotContentDeletionPolicy(*vs.Status.BoundVolumeSnapshotContentName, snapClient.SnapshotV1beta1())
+		err := util.SetVolumeSnapshotContentDeletionPolicy(*vs.Status.BoundVolumeSnapshotContentName, snapClient.SnapshotV1())
 		if err != nil && !apierrors.IsNotFound(err) {
 			return errors.Wrapf(err, fmt.Sprintf("failed to patch DeletionPolicy of volume snapshot %s/%s", vs.Namespace, vs.Name))
 		}
@@ -63,7 +63,7 @@ func (p *VolumeSnapshotDeleteItemAction) Execute(input *velero.DeleteItemActionE
 			return nil
 		}
 	}
-	err = snapClient.SnapshotV1beta1().VolumeSnapshots(vs.Namespace).Delete(context.TODO(), vs.Name, metav1.DeleteOptions{})
+	err = snapClient.SnapshotV1().VolumeSnapshots(vs.Namespace).Delete(context.TODO(), vs.Name, metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}

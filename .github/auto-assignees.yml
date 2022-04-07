@@ -9,14 +9,10 @@ reviewers:
 
   groups:
     maintainers:
-      - dsu-igeek
-      - jenting
       - sseago
       - reasonerjt
       - ywk253100
       - blackpiglet
-      - qiuming-best
-
 options:
   ignore_draft: true
   ignored_keywords:
