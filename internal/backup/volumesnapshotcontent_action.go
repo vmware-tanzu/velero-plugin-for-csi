@@ -37,7 +37,7 @@ type VolumeSnapshotContentBackupItemAction struct {
 
 // AppliesTo returns information indicating that the VolumeSnapshotContentBackupItemAction action should be invoked to backup volumesnapshotcontents.
 func (p *VolumeSnapshotContentBackupItemAction) AppliesTo() (velero.ResourceSelector, error) {
-	p.Log.Debug("VolumeSnapshotBackupItemAction AppliesTo")
+	p.Log.Debug("VolumeSnapshotContentBackupItemAction AppliesTo")
 
 	return velero.ResourceSelector{
 		IncludedResources: []string{"volumesnapshotcontent.snapshot.storage.k8s.io"},
