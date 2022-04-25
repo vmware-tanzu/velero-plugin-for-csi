@@ -719,6 +719,7 @@ func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
 func TestGetVolumeSnapshotContentForVolumeSnapshot(t *testing.T) {
 	vscName := "snapcontent-7d1bdbd1-d10d-439c-8d8e-e1c2565ddc53"
 	snapshotHandle := "snapshot-handle"
+	snapshotStatus := true
 	vscObj := &snapshotv1api.VolumeSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: vscName,
@@ -731,6 +732,7 @@ func TestGetVolumeSnapshotContentForVolumeSnapshot(t *testing.T) {
 		},
 		Status: &snapshotv1api.VolumeSnapshotContentStatus{
 			SnapshotHandle: &snapshotHandle,
+			ReadyToUse:     &snapshotStatus,
 		},
 	}
 	validVS := &snapshotv1api.VolumeSnapshot{
