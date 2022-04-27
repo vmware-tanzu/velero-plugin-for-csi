@@ -53,8 +53,15 @@ func (p *VolumeSnapshotContentDeleteItemAction) Execute(input *velero.DeleteItem
 
 	err = util.SetVolumeSnapshotContentDeletionPolicy(snapCont.Name, snapClient.SnapshotV1())
 	if err != nil {
+		// #4764: Leave a warning when VolumeSnapshotContent cannot be found for deletion.
+		// Manual deleting VolumeSnapshotContent can cause this.
+		// It's tricky for Velero to handle this inconsistency.
+		// Even if Velero restores the VolumeSnapshotContent, CSI snapshot controller
+		// may not delete it correctly due to the snapshot represented by VolumeSnapshotContent
+		// already deleted on cloud provider.
 		if apierrors.IsNotFound(err) {
-			p.Log.Infof("VolumeSnapshotContent %s not found", snapCont.Name)
+			p.Log.Warnf("VolumeSnapshotContent %s of backup %s cannot be found. May leave orphan snapshot %s on cloud provider.",
+				snapCont.Name, input.Backup.Name, *snapCont.Status.SnapshotHandle)
 			return nil
 		}
 		return errors.Wrapf(err, fmt.Sprintf("failed to set DeletionPolicy on volumesnapshotcontent %s. Skipping deletion", snapCont.Name))
