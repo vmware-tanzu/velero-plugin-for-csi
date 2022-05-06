@@ -8,5 +8,5 @@ RUN CGO_ENABLED=0 GOOS=linux go build -v -o $APP_ROOT/bin/velero-plugin-for-csi 
 FROM registry.access.redhat.com/ubi8-minimal
 RUN mkdir /plugins
 COPY --from=builder /opt/app-root/bin/velero-plugin-for-csi /plugins/
-USER nobody:nobody
+USER 65534:65534
 ENTRYPOINT ["/bin/bash", "-c", "cp /plugins/* /target/."]
