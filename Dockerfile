@@ -13,8 +13,8 @@
 # limitations under the License.
 FROM busybox:1.33.1 AS busybox
 
-FROM gcr.io/distroless/base-debian10:nonroot
+FROM scratch
 ADD velero-plugin-for-csi /plugins/
 COPY --from=busybox /bin/cp /bin/cp
-USER nonroot:nonroot
+USER 65532:65532
 ENTRYPOINT ["cp", "/plugins/velero-plugin-for-csi", "/target/."]
