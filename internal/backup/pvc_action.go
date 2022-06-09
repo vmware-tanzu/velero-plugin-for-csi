@@ -111,13 +111,6 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 	}
 	p.Log.Infof("volumesnapshot class=%s", snapshotClass.Name)
 
-	// If deletetionPolicy is not Retain, then in the event of a disaster, the namespace is lost with the volumesnapshot object in it,
-	// the underlying volumesnapshotcontent and the volume snapshot in the storage provider is also deleted.
-	// In such a scenario, the backup objects will be useless as the snapshot handle itself will not be valid.
-	if snapshotClass.DeletionPolicy != snapshotv1api.VolumeSnapshotContentRetain {
-		p.Log.Warnf("DeletionPolicy on VolumeSnapshotClass %s is not %s; Deletion of VolumeSnapshot objects will lead to deletion of snapshot in the storage provider.",
-			snapshotClass.Name, snapshotv1api.VolumeSnapshotContentRetain)
-	}
 	// Craft the snapshot object to be created
 	snapshot := snapshotv1api.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
