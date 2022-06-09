@@ -54,6 +54,10 @@ func resetVolumeSnapshotSpecForRestore(vs *snapshotv1api.VolumeSnapshot, vscName
 	vs.Spec.Source.VolumeSnapshotContentName = vscName
 }
 
+func resetVolumeSnapshotAnnotation(vs *snapshotv1api.VolumeSnapshot) {
+	vs.ObjectMeta.Annotations[util.CSIVSCDeletionPolicy] = string(snapshotv1api.VolumeSnapshotContentRetain)
+}
+
 // Execute uses the data such as CSI driver name, storage snapshot handle, snapshot deletion secret (if any) from the annotations
 // to recreate a volumesnapshotcontent object and statically bind the Volumesnapshot object being restored.
 func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
@@ -86,12 +90,8 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 			return nil, errors.Errorf("Volumesnapshot %s/%s does not have a %s annotation", vs.Namespace, vs.Name, util.CSIDriverNameAnnotation)
 		}
 
-		deletionPolicy, exists := vs.Annotations[util.CSIVSCDeletionPolicy]
-		if !exists {
-			p.Log.Infof("Volumesnapshot %s/%s does not have a %s annotation using DeletionPolicy Retain for volumesnapshotcontent",
-				vs.Namespace, vs.Name, util.CSIVSCDeletionPolicy)
-			deletionPolicy = string(snapshotv1api.VolumeSnapshotContentRetain)
-		}
+		p.Log.Debugf("Set VolumeSnapshotContent %s/%s DeletionPolicy to Retain to make sure VS deletion in namespace will not delete Snapshot on cloud provider.",
+			vs.Namespace, vs.Name)
 
 		// TODO: generated name will be like velero-velero-something. Fix that.
 		vsc := snapshotv1api.VolumeSnapshotContent{
@@ -102,7 +102,7 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 				},
 			},
 			Spec: snapshotv1api.VolumeSnapshotContentSpec{
-				DeletionPolicy: snapshotv1api.DeletionPolicy(deletionPolicy),
+				DeletionPolicy: snapshotv1api.VolumeSnapshotContentRetain,
 				Driver:         csiDriverName,
 				VolumeSnapshotRef: core_v1.ObjectReference{
 					Kind:      "VolumeSnapshot",
@@ -129,6 +129,9 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 
 		// Reset Spec to convert the volumesnapshot from using the dyanamic volumesnapshotcontent to the static one.
 		resetVolumeSnapshotSpecForRestore(&vs, &vscupd.Name)
+
+		// Reset VolumeSnapshot annotation. By now, only change DeletionPolicy to Retain.
+		resetVolumeSnapshotAnnotation(&vs)
 	}
 
 	vsMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vs)
