@@ -1,1 +1,0 @@
-During restore, update VSC's DeletionPolicy to Retain, when it's set to Delete to make sure VS deletion will not impact snapshot on cloud.
