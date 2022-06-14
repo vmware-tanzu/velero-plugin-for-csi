@@ -1,0 +1,17 @@
+### All Changes
+
+- Remove the unnecessary warning. (#109, @reasonerjt)
+- Update VSC's DeletionPolicy to Retain when it is set to Delete. (#108, @blackpiglet)
+- Added shubham to auto-assignees. (#107, @sseago)
+- Use scratch as the base image. (#106, @ywk253100)
+- Revert "Add ReadyToUse status check before assuming VolumeSnapshotContent ready." (#105, @blackpiglet)
+- Bump up the version of library go-plugin. (#104, @ywk253100)
+- Fix: Record a warning when deleting VSC but fail with NotFound. (#103, @blackpiglet)
+- fix: VolumeSnapshotContentBackupItemAction AppliesTo() debug message. (#101, @ yuvalman)
+- Add ReadyToUse status check before assuming VolumeSnapshotContent ready. (#100, @blackpiglet)
+- Bump up the API from v1beta1 to v1. (#99, @reasonerjt)
+- Bump up Golang version to v1.17. (#98, @blackpiglet)
+- Add CSI plugin compatible Velero version v1.8.x. (#97, @jenting)
+- Append "-dev" suffix for the image tag of release branches. (#96, @ywk253100)
+- Enable building and pushing image for release branches. (#95, @ywk253100)
+- Fix CVE-2020-26160 and CVE-2020-29652. (#94, @ywk253100)
