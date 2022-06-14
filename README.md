@@ -5,18 +5,14 @@
 
 This repository contains Velero plugins for snapshotting CSI backed PVCs using the [CSI _beta_ snapshot APIs][7].
 
-These plugins are currently in beta as of the [Velero 1.4 release][1] and will reach GA shortly after the CSI volumesnapshotting APIs in upstream Kubernetes reach GA.
+CSI plugin reaches GA for AWS and Azure environments as of the [Velero 1.9 release][1]. It should also work for those environments in which CSI plugin provides durable snapshot (please check [WARNING](#WARNING) section for more details), but Velero team doesn't have enough resources to verify, so please do enough tests before using CSI plugin in some environments. For those environments that don't have durable snapshot capability, CSI plugin is still in beta state. After Velero's data mover function is ready (hopefully in Velero v1.10), CSI plugin will GA for those environments too.
 
 For a list of prerequisites and installation instructions, please refer to our documentation [here][2].
 
 # WARNING
-CSI Snapshots are a standard Kubernetes mechanism for taking snapshots.  The actual implementation of snapshots
-varies by storage vendor.  For disaster recovery, snapshots must be stored in a durable store, such as an S3
-bucket, tape library, etc. and not just on the primary storage.  If the snapshot is only stored on the primary
-storage and the storage is corrupted or destroyed the backup will be lost.
+CSI Snapshots are a standard Kubernetes mechanism for taking snapshots.  The actual implementation of snapshots varies by storage vendor.  For disaster recovery, snapshots must be stored in a durable store, such as an S3 bucket, tape library, etc. and not just on the primary storage.  If the snapshot is only stored on the primary storage and the storage is corrupted or destroyed the backup will be lost.
 
-CSI snapshots on AWS EBS, Azure managed disks and Google Cloud Persistent Disk are durable and can be safely
-used for backup.
+CSI snapshots on AWS EBS, Azure managed disks and Google Cloud Persistent Disk are durable and can be safely used for backup.
 
 For all other storage systems, please check with your storage vendor.  If your storage vendor doesn't support 
 durable snapshot storage you may want to consider 
@@ -28,6 +24,7 @@ Below is a listing of plugin versions and respective Velero versions that are co
 
 | Plugin Version  | Velero Version |
 |-----------------|----------------|
+| v0.3.0          | v1.9.x         |
 | v0.2.0          | v1.7.x, v1.8.x |
 | v0.1.2          | v1.5.x, v1.6.x |
 | v0.1.1          | v1.4.x         |
@@ -40,7 +37,7 @@ If you would like to file a GitHub issue for the plugin, please open the issue o
 
 ### PVCBackupItemAction
 
-A plugin of type BackupItemAction that backs up `persistentvolumeclaims` which are backed by CSI volumes.
+A plugin of type BackupItemAction that backs up `PersistentVolumeClaims` which are backed by CSI volumes.
 
 This plugin will create a [CSI VolumeSnapshot][3] which in turn triggers the CSI driver to perform the snapshot operation on the volume.
 
@@ -64,28 +61,28 @@ This plugin will look for snapshot list operation secret from the [annotations][
 
 ### PVCRestoreItemAction
 
-A plugin of type RestoreItemAction that restores `persistentvolumeclaims` which were backed up by [PVCBackupItemAction](#PVCBackupItemAction).
+A plugin of type RestoreItemAction that restores `PersistentVolumeClaims` which were backed up by [PVCBackupItemAction](#PVCBackupItemAction).
 
-This plugin will modify the spec of the `persistentvolumeclaim` being restored to use the VolumeSnapshot, created during backup, as the data source ensuring that the newly provisioned volume, to satisfy this claim, may be pre-populated using the VolumeSnapshot.
+This plugin will modify the spec of the `PersistentVolumeClaim` being restored to use the VolumeSnapshot, created during backup, as the data source ensuring that the newly provisioned volume, to satisfy this claim, may be pre-populated using the VolumeSnapshot.
 
 ### VolumeSnapshotRestoreItemAction
 
 A plugin of type RestoreItemAction that restores [`volumesnapshots.snapshot.storage.k8s.io`][3]. 
 
-This plugin will use the annotations, added during backup, to create a [`volumesnapshotcontent.snapshot.storage.k8s.io`][4] and statically bind it to the volumesnapshot object being restored. The plugin will also set the necessary [annotations][6] if the original volumesnapshotcontent had snapshot deletion secrets associated with it. 
+This plugin will use the annotations, added during backup, to create a [`volumesnapshotcontent.snapshot.storage.k8s.io`][4] and statically bind it to the VolumeSnapshot object being restored. The plugin will also set the necessary [annotations][6] if the original VolumeSnapshotContent had snapshot deletion secrets associated with it. 
 
 ### VolumeSnapshotClassRestoreItemAction
 
 A plugin of type RestoreItemAction that restores [`snapshot.storage.k8s.io.volumesnapshotclasses`][5]. 
 
-This plugin will use the [annotations][6] on the object being restored to return, as additional items, any snapshot lister secret that is associated with the volumesnapshotclass.
+This plugin will use the [annotations][6] on the object being restored to return, as additional items, any snapshot lister secret that is associated with the VolumeSnapshotClass.
 
 
 ## Building the plugins
 
-Official images of the plugin is available on [Velero DockerHub](https://hub.docker.com/repository/docker/velero/velero-plugin-for-csi).
+Official images of the plugin are available on [Velero DockerHub](https://hub.docker.com/repository/docker/velero/velero-plugin-for-csi).
 
-For development and testing, the plugin container images may be built by running the below command
+For development and testing, the plugin images may be built by running the below command
 
 ```bash
 $ IMAGE=<YOUR_REGISTRY>/velero-plugin-for-csi:<YOUR_TAG> make container
