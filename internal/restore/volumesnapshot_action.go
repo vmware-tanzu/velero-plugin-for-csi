@@ -20,7 +20,9 @@ import (
 	"context"
 	"fmt"
 	datamoverv1alpha1 "github.com/konveyor/volume-snapshot-mover/api/v1alpha1"
+	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"strconv"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -36,6 +38,15 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 )
+
+// We expect VolumeSnapshotMoverEnv to be set once when container is started.
+// When true, we will use the csi data-mover code path.
+var dataMoverCase, _ = strconv.ParseBool(os.Getenv(util.VolumeSnapshotMoverEnv))
+
+// DataMoverCase use getter to avoid changing bool in other packages
+func DataMoverCase() bool {
+	return dataMoverCase
+}
 
 // VolumeSnapshotRestoreItemAction is a Velero restore item action plugin for VolumeSnapshots
 type VolumeSnapshotRestoreItemAction struct {
@@ -83,6 +94,7 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 		return nil, err
 	}
 
+	// TODO: use unique naming for VSR
 	VSRestoreName := fmt.Sprintf("vsr-%v", *vs.Spec.Source.PersistentVolumeClaimName)
 	err = snapMoverClient.Get(context.TODO(), client.ObjectKey{Namespace: vs.Namespace, Name: VSRestoreName}, &vsr)
 	if err != nil {
@@ -95,12 +107,16 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 	}
 
 	if !util.IsVolumeSnapshotExists(&vs, snapClient.SnapshotV1()) {
-		snapHandle := vsr.Status.SnapshotHandle
-		// TODO: Accomodate native CSI behavior, next PR coming up
-		//snapHandle, exists := vs.Annotations[util.VolumeSnapshotHandleAnnotation]
-		//if !exists {
-		//	return nil, errors.Errorf("Volumesnapshot %s/%s does not have a %s annotation", vs.Namespace, vs.Name, util.VolumeSnapshotHandleAnnotation)
-		//}
+
+		snapHandle, exists := vs.Annotations[util.VolumeSnapshotHandleAnnotation]
+		if !exists {
+			return nil, errors.Errorf("Volumesnapshot %s/%s does not have a %s annotation", vs.Namespace, vs.Name, util.VolumeSnapshotHandleAnnotation)
+		}
+
+		// Overwrite snaphandle if csi data-mover case is true
+		if DataMoverCase() {
+			snapHandle = vsr.Status.SnapshotHandle
+		}
 
 		csiDriverName, exists := vs.Annotations[util.CSIDriverNameAnnotation]
 		if !exists {

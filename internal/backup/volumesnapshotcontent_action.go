@@ -127,7 +127,6 @@ func (p *VolumeSnapshotContentBackupItemAction) Execute(item runtime.Unstructure
 		Namespace:     vsb.Namespace,
 	})
 
-	p.Log.Infof("Additional items in vsc action %v", additionalItems)
 	p.Log.Infof("Returning from VolumeSnapshotContentBackupItemAction with %d additionalItems to backup", len(additionalItems))
 	return item, additionalItems, nil
 }

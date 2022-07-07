@@ -29,7 +29,6 @@ func (p *VolumeSnapshotBackupBackupItemAction) AppliesTo() (velero.ResourceSelec
 // Execute backs up a VolumeSnapshotBackup object with a completely filled status
 func (p *VolumeSnapshotBackupBackupItemAction) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
 	p.Log.Infof("Executing VolumeSnapshotBackupBackupItemAction")
-	p.Log.Infof("Executing on item: %v", item)
 	vsb := datamoverv1alpha1.VolumeSnapshotBackup{}
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &vsb); err != nil {
 		return nil, nil, errors.WithStack(err)
@@ -40,10 +39,6 @@ func (p *VolumeSnapshotBackupBackupItemAction) Execute(item runtime.Unstructured
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
 	}
-
-	p.Log.Infof("Value of vsbNew is : %v", vsbNew)
-
-	p.Log.Infof("Value of vsbNew status: %v", vsbNew.Status)
 
 	vsb.Status = *vsbNew.Status.DeepCopy()
 
@@ -61,6 +56,5 @@ func (p *VolumeSnapshotBackupBackupItemAction) Execute(item runtime.Unstructured
 		return nil, nil, errors.WithStack(err)
 	}
 
-	p.Log.Infof("Returning VSB map : %v", vsbMap)
 	return &unstructured.Unstructured{Object: vsbMap}, nil, nil
 }
