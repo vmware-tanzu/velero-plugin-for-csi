@@ -18,6 +18,9 @@ package restore
 
 import (
 	"context"
+	"fmt"
+	datamoverv1alpha1 "github.com/konveyor/volume-snapshot-mover/api/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -74,16 +77,30 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 		vs.SetNamespace(val)
 	}
 
+	vsr := datamoverv1alpha1.VolumeSnapshotRestore{}
+	snapMoverClient, err := util.GetVolumeSnapshotMoverClient()
+	if err != nil {
+		return nil, err
+	}
+
+	VSRestoreName := fmt.Sprintf("vsr-%v", *vs.Spec.Source.PersistentVolumeClaimName)
+	err = snapMoverClient.Get(context.TODO(), client.ObjectKey{Namespace: vs.Namespace, Name: VSRestoreName}, &vsr)
+	if err != nil {
+		return nil, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotrestore %s/%s", VSRestoreName, vs.Namespace))
+	}
+
 	_, snapClient, err := util.GetClients()
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
 	if !util.IsVolumeSnapshotExists(&vs, snapClient.SnapshotV1()) {
-		snapHandle, exists := vs.Annotations[util.VolumeSnapshotHandleAnnotation]
-		if !exists {
-			return nil, errors.Errorf("Volumesnapshot %s/%s does not have a %s annotation", vs.Namespace, vs.Name, util.VolumeSnapshotHandleAnnotation)
-		}
+		snapHandle := vsr.Status.SnapshotHandle
+		// TODO: Accomodate native CSI behavior, next PR coming up
+		//snapHandle, exists := vs.Annotations[util.VolumeSnapshotHandleAnnotation]
+		//if !exists {
+		//	return nil, errors.Errorf("Volumesnapshot %s/%s does not have a %s annotation", vs.Namespace, vs.Name, util.VolumeSnapshotHandleAnnotation)
+		//}
 
 		csiDriverName, exists := vs.Annotations[util.CSIDriverNameAnnotation]
 		if !exists {
