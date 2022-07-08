@@ -17,14 +17,13 @@ limitations under the License.
 package restore
 
 import (
+	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-
-	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 )
 
@@ -44,6 +43,15 @@ func (p *VolumeSnapshotContentRestoreItemAction) AppliesTo() (velero.ResourceSel
 // Execute restores a volumesnapshotcontent object without modification returning the snapshot lister secret, if any, as
 // additional items to restore.
 func (p *VolumeSnapshotContentRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
+	// Check for csi data-mover case and skip VSC restore if true
+	if DataMoverCase() {
+		p.Log.Info("Skipping VolumeSnapshotContentRestoreItemAction")
+
+		return &velero.RestoreItemActionExecuteOutput{
+			SkipRestore: true,
+		}, nil
+	}
+
 	p.Log.Info("Starting VolumeSnapshotContentRestoreItemAction")
 	var snapCont snapshotv1api.VolumeSnapshotContent
 
@@ -68,3 +76,4 @@ func (p *VolumeSnapshotContentRestoreItemAction) Execute(input *velero.RestoreIt
 		AdditionalItems: additionalItems,
 	}, nil
 }
+
