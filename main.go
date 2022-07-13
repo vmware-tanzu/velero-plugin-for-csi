@@ -60,7 +60,7 @@ func newVolumeSnapContentBackupItemAction(logger logrus.FieldLogger) (interface{
 }
 
 func newVolumeSnapshotBackupBackupItemAction(logger logrus.FieldLogger) (interface{}, error) {
-	return &backup.VolumeSnapshotBackupItemAction{Log: logger}, nil
+	return &backup.VolumeSnapshotBackupBackupItemAction{Log: logger}, nil
 }
 
 func newVolumeSnapshotRestoreRestoreItemAction(logger logrus.FieldLogger) (interface{}, error) {
