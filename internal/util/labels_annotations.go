@@ -43,4 +43,9 @@ const (
 
 	// Env vars
 	VolumeSnapshotMoverEnv = "VOLUME_SNAPSHOT_MOVER"
+
+	// BackupNameLabel is the label key used to identify a backup by name.
+	BackupNameLabel = "velero.io/backup-name"
+	// RestoreNameLabel is the label key used to identify a restore by name.
+	RestoreNameLabel = "velero.io/restore-name"
 )

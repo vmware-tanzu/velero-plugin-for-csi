@@ -80,6 +80,9 @@ func (p *VolumeSnapshotContentBackupItemAction) Execute(item runtime.Unstructure
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprint("vsb-" + snapCont.Spec.VolumeSnapshotRef.Name),
 			Namespace: snapCont.Spec.VolumeSnapshotRef.Namespace,
+			Labels: map[string]string{
+				util.BackupNameLabel: backup.Name,
+			},
 		},
 		Spec: datamoverv1alpha1.VolumeSnapshotBackupSpec{
 			VolumeSnapshotContent: corev1api.ObjectReference{
