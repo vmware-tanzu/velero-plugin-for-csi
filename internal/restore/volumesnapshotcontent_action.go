@@ -44,7 +44,7 @@ func (p *VolumeSnapshotContentRestoreItemAction) AppliesTo() (velero.ResourceSel
 // additional items to restore.
 func (p *VolumeSnapshotContentRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
 	// Check for csi data-mover case and skip VSC restore if true
-	if DataMoverCase() {
+	if util.DataMoverCase() {
 		p.Log.Info("Skipping VolumeSnapshotContentRestoreItemAction")
 
 		return &velero.RestoreItemActionExecuteOutput{
@@ -76,4 +76,3 @@ func (p *VolumeSnapshotContentRestoreItemAction) Execute(input *velero.RestoreIt
 		AdditionalItems: additionalItems,
 	}, nil
 }
-

@@ -20,8 +20,10 @@ import (
 	"context"
 	"fmt"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"strconv"
 	"strings"
 	"time"
 
@@ -428,4 +430,13 @@ func GetVolumeSnapshotMoverClient() (client.Client, error) {
 	datamoverv1alpha1.AddToScheme(client2.Scheme())
 
 	return client2, err
+}
+
+// We expect VolumeSnapshotMoverEnv to be set once when container is started.
+// When true, we will use the csi data-mover code path.
+var dataMoverCase, _ = strconv.ParseBool(os.Getenv(VolumeSnapshotMoverEnv))
+
+// DataMoverCase use getter to avoid changing bool in other packages
+func DataMoverCase() bool {
+	return dataMoverCase
 }
