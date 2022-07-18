@@ -19,6 +19,7 @@ package restore
 import (
 	"context"
 	"fmt"
+
 	datamoverv1alpha1 "github.com/konveyor/volume-snapshot-mover/api/v1alpha1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -76,19 +77,6 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 		vs.SetNamespace(val)
 	}
 
-	vsr := datamoverv1alpha1.VolumeSnapshotRestore{}
-	snapMoverClient, err := util.GetVolumeSnapshotMoverClient()
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO: use unique naming for VSR
-	VSRestoreName := fmt.Sprintf("vsr-%v", *vs.Spec.Source.PersistentVolumeClaimName)
-	err = snapMoverClient.Get(context.TODO(), client.ObjectKey{Namespace: vs.Namespace, Name: VSRestoreName}, &vsr)
-	if err != nil {
-		return nil, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotrestore %s/%s", VSRestoreName, vs.Namespace))
-	}
-
 	_, snapClient, err := util.GetClients()
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -103,6 +91,20 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 
 		// Overwrite snaphandle if csi data-mover case is true
 		if util.DataMoverCase() {
+
+			vsr := datamoverv1alpha1.VolumeSnapshotRestore{}
+			snapMoverClient, err := util.GetVolumeSnapshotMoverClient()
+			if err != nil {
+				return nil, err
+			}
+
+			// TODO: use unique naming for VSR
+			VSRestoreName := fmt.Sprintf("vsr-%v", *vs.Spec.Source.PersistentVolumeClaimName)
+			err = snapMoverClient.Get(context.TODO(), client.ObjectKey{Namespace: vs.Namespace, Name: VSRestoreName}, &vsr)
+			if err != nil {
+				return nil, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotrestore %s/%s", VSRestoreName, vs.Namespace))
+			}
+
 			snapHandle = vsr.Status.SnapshotHandle
 		}
 
