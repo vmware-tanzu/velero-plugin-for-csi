@@ -61,6 +61,7 @@ func (p *VolumeSnapshotContentBackupItemAction) Execute(item runtime.Unstructure
 
 	additionalItems := []velero.ResourceIdentifier{}
 
+	// Create VolumeSnapshotBackup CR per VolumeSnapshotContent and add it as an additional item if its a DataMover case
 	if util.DataMoverCase() {
 		_, snapshotClient, err := util.GetClients()
 		if err != nil {
