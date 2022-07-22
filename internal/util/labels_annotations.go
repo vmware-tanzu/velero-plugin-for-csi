@@ -37,9 +37,11 @@ const (
 	PrefixedSnapshotterSecretNamespaceKey = "csi.storage.k8s.io/snapshotter-secret-namespace"
 
 	// VolumeSnapshotMover annotation keys
-	VolumeSnapshotMoverResticRepository = "datamover.io/restic-repository"
-	VolumeSnapshotMoverSourcePVCName    = "datamover.io/source-pvc-name"
-	VolumeSnapshotMoverSourcePVCSize    = "datamover.io/source-pvc-size"
+	VolumeSnapshotMoverResticRepository      = "datamover.io/restic-repository"
+	VolumeSnapshotMoverSourcePVCName         = "datamover.io/source-pvc-name"
+	VolumeSnapshotMoverSourcePVCSize         = "datamover.io/source-pvc-size"
+	VolumeSnapshotMoverSourcePVCStorageClass = "datamover.io/source-pvc-storageclass"
+	VolumeSnapshotMoverVolumeSnapshotClass   = "datamover.io/source-pvc-volumesnapshotclass"
 
 	// Env vars
 	VolumeSnapshotMoverEnv = "VOLUME_SNAPSHOT_MOVER"

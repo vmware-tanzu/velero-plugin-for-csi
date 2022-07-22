@@ -459,8 +459,8 @@ github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+o
 github.com/konsorten/go-windows-terminal-sequences v1.0.1/go.mod h1:T0+1ngSBFLxvqU3pZ+m/2kptfBszLMUkC4ZK/EgS/cQ=
 github.com/konsorten/go-windows-terminal-sequences v1.0.2/go.mod h1:T0+1ngSBFLxvqU3pZ+m/2kptfBszLMUkC4ZK/EgS/cQ=
 github.com/konsorten/go-windows-terminal-sequences v1.0.3/go.mod h1:T0+1ngSBFLxvqU3pZ+m/2kptfBszLMUkC4ZK/EgS/cQ=
-github.com/konveyor/volume-snapshot-mover v0.0.0-20220627155350-b8d810d1ef4c h1:Md4DkWbJ7arTA4X05k/8JTJiDTmdghvEcky8/M20hMY=
-github.com/konveyor/volume-snapshot-mover v0.0.0-20220627155350-b8d810d1ef4c/go.mod h1:VPORm6ADJrhut79QCKUkbyGU6QacDr/tvhBVVcWQfn4=
+github.com/konveyor/volume-snapshot-mover v0.0.0-20220721133404-43f33b3b441c h1:Kx4tDMwYW+uFUwWQVviZvuwqZtzFnUHvS+3rpILz/7k=
+github.com/konveyor/volume-snapshot-mover v0.0.0-20220721133404-43f33b3b441c/go.mod h1:VPORm6ADJrhut79QCKUkbyGU6QacDr/tvhBVVcWQfn4=
 github.com/kr/fs v0.1.0/go.mod h1:FFnZGqtBN9Gxj7eW1uZ42v5BccTP0vu6NEaFoC2HwRg=
 github.com/kr/logfmt v0.0.0-20140226030751-b84e30acd515/go.mod h1:+0opPa2QZZtGFBFZlji/RkVcI2GknAs/DXo4wKdlNEc=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
