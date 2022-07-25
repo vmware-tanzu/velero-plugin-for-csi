@@ -19,13 +19,14 @@ package util
 import (
 	"context"
 	"fmt"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"os"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"strconv"
 	"strings"
 	"time"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/pkg/errors"
@@ -439,4 +440,22 @@ var dataMoverCase, _ = strconv.ParseBool(os.Getenv(VolumeSnapshotMoverEnv))
 // DataMoverCase use getter to avoid changing bool in other packages
 func DataMoverCase() bool {
 	return dataMoverCase
+}
+
+func GetDataMoverCredName(backup *velerov1api.Backup, protectedNS string, log logrus.FieldLogger) (string, error) {
+
+	bslName := backup.Spec.StorageLocation
+	resticSecretName := fmt.Sprintf("%v-volsync-restic", bslName)
+
+	secretClient, _, err := GetClients()
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+
+	// check this secret exists
+	if _, err := secretClient.CoreV1().Secrets(protectedNS).Get(context.TODO(), resticSecretName, metav1.GetOptions{}); err != nil {
+		return "", errors.WithStack(err)
+	}
+
+	return resticSecretName, nil
 }
