@@ -43,6 +43,7 @@ func (p *VolumeSnapshotRestoreRestoreItemAction) Execute(input *velero.RestoreIt
 	if err != nil {
 		return nil, err
 	}
+
 	// create VSR
 	vsr := datamoverv1alpha1.VolumeSnapshotRestore{
 		ObjectMeta: metav1.ObjectMeta{
@@ -54,9 +55,7 @@ func (p *VolumeSnapshotRestoreRestoreItemAction) Execute(input *velero.RestoreIt
 		},
 		Spec: datamoverv1alpha1.VolumeSnapshotRestoreSpec{
 			ResticSecretRef: corev1.LocalObjectReference{
-
-				// TODO: use vsb.spec.resticSecretRef.name
-				Name: "restic-secret",
+				Name: vsb.Spec.ResticSecretRef.Name,
 			},
 			VolumeSnapshotMoverBackupref: datamoverv1alpha1.VSBRef{
 				BackedUpPVCData: datamoverv1alpha1.PVCData{

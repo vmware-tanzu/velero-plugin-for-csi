@@ -86,7 +86,7 @@ func (p *VolumeSnapshotContentBackupItemAction) Execute(item runtime.Unstructure
 			return nil, nil, errors.WithStack(err)
 		}
 
-		// craft a  VolumeBackupSnapshot object to be created
+		// craft a VolumeBackupSnapshot object to be created
 		vsb := datamoverv1alpha1.VolumeSnapshotBackup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fmt.Sprint("vsb-" + snapCont.Spec.VolumeSnapshotRef.Name),
@@ -100,7 +100,9 @@ func (p *VolumeSnapshotContentBackupItemAction) Execute(item runtime.Unstructure
 					Name: snapCont.Name,
 				},
 				ProtectedNamespace: backup.Namespace,
-				// TODO: add resticSecretRef.name as resticSecretName here
+				ResticSecretRef: corev1api.LocalObjectReference{
+					Name: resticSecretName,
+				},
 			},
 		}
 
