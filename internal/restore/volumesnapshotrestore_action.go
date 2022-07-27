@@ -59,10 +59,12 @@ func (p *VolumeSnapshotRestoreRestoreItemAction) Execute(input *velero.RestoreIt
 			},
 			VolumeSnapshotMoverBackupref: datamoverv1alpha1.VSBRef{
 				BackedUpPVCData: datamoverv1alpha1.PVCData{
-					Name: vsb.Annotations[util.VolumeSnapshotMoverSourcePVCName],
-					Size: vsb.Annotations[util.VolumeSnapshotMoverSourcePVCSize],
+					Name:             vsb.Annotations[util.VolumeSnapshotMoverSourcePVCName],
+					Size:             vsb.Annotations[util.VolumeSnapshotMoverSourcePVCSize],
+					StorageClassName: vsb.Annotations[util.VolumeSnapshotMoverSourcePVCStorageClass],
 				},
-				ResticRepository: vsb.Annotations[util.VolumeSnapshotMoverResticRepository],
+				ResticRepository:        vsb.Annotations[util.VolumeSnapshotMoverResticRepository],
+				VolumeSnapshotClassName: vsb.Annotations[util.VolumeSnapshotMoverVolumeSnapshotClass],
 			},
 			ProtectedNamespace: vsb.Spec.ProtectedNamespace,
 		},
