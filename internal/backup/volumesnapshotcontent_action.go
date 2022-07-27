@@ -19,6 +19,7 @@ package backup
 import (
 	"context"
 	"fmt"
+
 	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -79,7 +80,13 @@ func (p *VolumeSnapshotContentBackupItemAction) Execute(item runtime.Unstructure
 			p.Log.Infof("volumesnapshotcontent not in ready state, still continuing with the backup")
 		}
 
-		// craft a  VolumeBackupSnapshot object to be created
+		// get secret name created by data mover controller
+		resticSecretName, err := util.GetDataMoverCredName(backup, backup.Namespace, p.Log)
+		if err != nil {
+			return nil, nil, errors.WithStack(err)
+		}
+
+		// craft a VolumeBackupSnapshot object to be created
 		vsb := datamoverv1alpha1.VolumeSnapshotBackup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fmt.Sprint("vsb-" + snapCont.Spec.VolumeSnapshotRef.Name),
@@ -93,6 +100,9 @@ func (p *VolumeSnapshotContentBackupItemAction) Execute(item runtime.Unstructure
 					Name: snapCont.Name,
 				},
 				ProtectedNamespace: backup.Namespace,
+				ResticSecretRef: corev1api.LocalObjectReference{
+					Name: resticSecretName,
+				},
 			},
 		}
 

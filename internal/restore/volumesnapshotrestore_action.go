@@ -3,6 +3,7 @@ package restore
 import (
 	"context"
 	"fmt"
+
 	datamoverv1alpha1 "github.com/konveyor/volume-snapshot-mover/api/v1alpha1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -42,6 +43,7 @@ func (p *VolumeSnapshotRestoreRestoreItemAction) Execute(input *velero.RestoreIt
 	if err != nil {
 		return nil, err
 	}
+
 	// create VSR
 	vsr := datamoverv1alpha1.VolumeSnapshotRestore{
 		ObjectMeta: metav1.ObjectMeta{
@@ -53,7 +55,7 @@ func (p *VolumeSnapshotRestoreRestoreItemAction) Execute(input *velero.RestoreIt
 		},
 		Spec: datamoverv1alpha1.VolumeSnapshotRestoreSpec{
 			ResticSecretRef: corev1.LocalObjectReference{
-				Name: "restic-secret",
+				Name: vsb.Spec.ResticSecretRef.Name,
 			},
 			VolumeSnapshotMoverBackupref: datamoverv1alpha1.VSBRef{
 				BackedUpPVCData: datamoverv1alpha1.PVCData{
