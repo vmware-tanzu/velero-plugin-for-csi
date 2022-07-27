@@ -3,7 +3,7 @@ module github.com/vmware-tanzu/velero-plugin-for-csi
 go 1.17
 
 require (
-	github.com/konveyor/volume-snapshot-mover v0.0.0-20220627155350-b8d810d1ef4c
+	github.com/konveyor/volume-snapshot-mover v0.0.0-20220727193704-2f898cdf8230
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.8.1
