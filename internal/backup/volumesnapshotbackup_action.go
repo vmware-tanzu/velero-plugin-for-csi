@@ -34,7 +34,7 @@ func (p *VolumeSnapshotBackupBackupItemAction) Execute(item runtime.Unstructured
 		return nil, nil, errors.WithStack(err)
 	}
 	p.Log.Infof("Converted Item to VSB: %v", vsb)
-	vsbNew, err := util.GetVolumeSnapshotbackupWithCompletedStatus(vsb.Namespace, vsb.Name, p.Log)
+	vsbNew, err := util.GetVolumeSnapshotbackupWithStatusData(vsb.Namespace, vsb.Name, p.Log)
 
 	if err != nil {
 		return nil, nil, errors.WithStack(err)

@@ -70,6 +70,11 @@ func (p *VolumeSnapshotRestoreRestoreItemAction) Execute(input *velero.RestoreIt
 		},
 	}
 
+	// if namespace mapping is specified
+	if val, ok := input.Restore.Spec.NamespaceMapping[vsr.GetNamespace()]; ok {
+		vsr.SetNamespace(val)
+	}
+
 	err = snapMoverClient.Create(context.Background(), &vsr)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error creating volumesnapshotrestore CR")

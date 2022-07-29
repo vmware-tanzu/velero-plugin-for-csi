@@ -298,8 +298,8 @@ func HasBackupLabel(o *metav1.ObjectMeta, backupName string) bool {
 	return o.Labels[velerov1api.BackupNameLabel] == label.GetValidName(backupName)
 }
 
-// Get VolumeSnapshotBackup CR with complete status fields
-func GetVolumeSnapshotbackupWithCompletedStatus(volumeSnapshotbackupNS string, volumeSnapshotName string, log logrus.FieldLogger) (datamoverv1alpha1.VolumeSnapshotBackup, error) {
+// Get VolumeSnapshotBackup CR with status data
+func GetVolumeSnapshotbackupWithStatusData(volumeSnapshotbackupNS string, volumeSnapshotName string, log logrus.FieldLogger) (datamoverv1alpha1.VolumeSnapshotBackup, error) {
 
 	timeout := 10 * time.Minute
 	interval := 5 * time.Second
@@ -316,8 +316,8 @@ func GetVolumeSnapshotbackupWithCompletedStatus(volumeSnapshotbackupNS string, v
 			return false, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotbackup %s/%s", volumeSnapshotbackupNS, volumeSnapshotName))
 		}
 
-		if len(vsb.Status.Phase) == 0 || vsb.Status.Phase != datamoverv1alpha1.SnapMoverBackupPhaseCompleted {
-			log.Infof("Waiting for volumesnapshotbackup %s/%s to complete. Retrying in %ds", volumeSnapshotbackupNS, volumeSnapshotName, interval/time.Second)
+		if len(vsb.Status.ResticRepository) == 0 || len(vsb.Status.SourcePVCData.Name) == 0 || len(vsb.Status.SourcePVCData.Size) == 0 || len(vsb.Status.SourcePVCData.StorageClassName) == 0 || len(vsb.Status.VolumeSnapshotClassName) == 0 {
+			log.Infof("Waiting for volumesnapshotbackup %s/%s to have status data. Retrying in %ds", volumeSnapshotbackupNS, volumeSnapshotName, interval/time.Second)
 			return false, nil
 		}
 
@@ -331,7 +331,7 @@ func GetVolumeSnapshotbackupWithCompletedStatus(volumeSnapshotbackupNS string, v
 		}
 		return vsb, err
 	}
-	log.Infof("Return VSB from GetVolumeSnapshotbackupWithCompletedStatus: %v", vsb)
+	log.Infof("Return VSB from GetVolumeSnapshotbackupWithInProgressStatus: %v", vsb)
 	return vsb, nil
 }
 
