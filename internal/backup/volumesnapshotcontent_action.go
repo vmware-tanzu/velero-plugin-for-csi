@@ -62,21 +62,20 @@ func (p *VolumeSnapshotContentBackupItemAction) Execute(item runtime.Unstructure
 
 	additionalItems := []velero.ResourceIdentifier{}
 
-	// check the VSC has the same backup name from label as the current backup
-	isVSForCurrentBackup, err := util.VSBHasVSBackupName(backup, &snapCont, p.Log)
-	if err != nil {
-		return nil, nil, errors.WithStack(err)
-	}
-
-	if !isVSForCurrentBackup {
-		p.Log.Infof("stale volumesnapshot found with backup name: %s", snapCont.Labels[util.BackupNameLabel])
-
-		// returning err instead of skipping restore to prevent data mover case
-		return nil, nil, errors.New("stale volumesnapshot found")
-	}
-
 	// Create VolumeSnapshotBackup CR per VolumeSnapshotContent and add it as an additional item if its a DataMover case
 	if util.DataMoverCase() {
+
+		// check the VSC has the same backup name from label as the current backup
+		isVSForCurrentBackup, err := util.VSBHasVSBackupName(backup, &snapCont, p.Log)
+		if err != nil {
+			return nil, nil, errors.WithStack(err)
+		}
+
+		if !isVSForCurrentBackup {
+			p.Log.Infof("stale volumesnapshot found with backup name: %s", snapCont.Labels[util.BackupNameLabel])
+
+			return nil, nil, errors.New("volumesnapshot found from prior backup")
+		}
 
 		_, snapshotClient, err := util.GetClients()
 		if err != nil {
