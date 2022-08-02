@@ -2,8 +2,6 @@ package restore
 
 import (
 	"context"
-	"fmt"
-
 	datamoverv1alpha1 "github.com/konveyor/volume-snapshot-mover/api/v1alpha1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -47,10 +45,11 @@ func (p *VolumeSnapshotRestoreRestoreItemAction) Execute(input *velero.RestoreIt
 	// create VSR
 	vsr := datamoverv1alpha1.VolumeSnapshotRestore{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprint("vsr-" + vsb.Annotations[util.VolumeSnapshotMoverSourcePVCName]),
-			Namespace: vsb.Namespace,
+			GenerateName: "vsr-",
+			Namespace:    vsb.Namespace,
 			Labels: map[string]string{
-				util.RestoreNameLabel: input.Restore.Name,
+				util.RestoreNameLabel:           input.Restore.Name,
+				util.PersistentVolumeClaimLabel: vsb.Annotations[util.VolumeSnapshotMoverSourcePVCName],
 			},
 		},
 		Spec: datamoverv1alpha1.VolumeSnapshotRestoreSpec{
