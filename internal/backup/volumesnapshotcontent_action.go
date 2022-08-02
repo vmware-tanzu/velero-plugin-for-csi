@@ -99,8 +99,8 @@ func (p *VolumeSnapshotContentBackupItemAction) Execute(item runtime.Unstructure
 		// craft a VolumeBackupSnapshot object to be created
 		vsb := datamoverv1alpha1.VolumeSnapshotBackup{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprint("vsb-" + snapCont.Spec.VolumeSnapshotRef.Name),
-				Namespace: snapCont.Spec.VolumeSnapshotRef.Namespace,
+				GenerateName: "vsb-",
+				Namespace:    snapCont.Spec.VolumeSnapshotRef.Namespace,
 				Labels: map[string]string{
 					util.BackupNameLabel: backup.Name,
 				},

@@ -19,17 +19,15 @@ package restore
 import (
 	"context"
 	"fmt"
-
 	datamoverv1alpha1 "github.com/konveyor/volume-snapshot-mover/api/v1alpha1"
+	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	core_v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
@@ -92,20 +90,24 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 		// Overwrite snaphandle if csi data-mover case is true
 		if util.DataMoverCase() {
 
-			vsr := datamoverv1alpha1.VolumeSnapshotRestore{}
+			vsrList := datamoverv1alpha1.VolumeSnapshotRestoreList{}
 			snapMoverClient, err := util.GetVolumeSnapshotMoverClient()
 			if err != nil {
 				return nil, err
 			}
 
-			// TODO: use unique naming for VSR
-			VSRestoreName := fmt.Sprintf("vsr-%v", *vs.Spec.Source.PersistentVolumeClaimName)
-			err = snapMoverClient.Get(context.TODO(), client.ObjectKey{Namespace: vs.Namespace, Name: VSRestoreName}, &vsr)
+			VSRListOptions := client.MatchingLabels(map[string]string{
+				velerov1api.RestoreNameLabel:    input.Restore.Name,
+				util.PersistentVolumeClaimLabel: *vs.Spec.Source.PersistentVolumeClaimName,
+			})
+
+			err = snapMoverClient.List(context.TODO(), &vsrList, VSRListOptions)
 			if err != nil {
-				return nil, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotrestore %s/%s", VSRestoreName, vs.Namespace))
+				return nil, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotrestore for PVC %s", *vs.Spec.Source.PersistentVolumeClaimName))
 			}
 
-			snapHandle = vsr.Status.SnapshotHandle
+			// this will always be unique
+			snapHandle = vsrList.Items[0].Status.SnapshotHandle
 		}
 
 		csiDriverName, exists := vs.Annotations[util.CSIDriverNameAnnotation]
