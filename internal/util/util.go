@@ -460,15 +460,15 @@ func GetDataMoverCredName(backup *velerov1api.Backup, protectedNS string, log lo
 	return resticSecretName, nil
 }
 
-func VSBHasVSBackupName(backup *velerov1api.Backup, snapCont *snapshotv1api.VolumeSnapshotContent, log logrus.FieldLogger) (bool, error) {
+func VSBHasVSBackupName(backup *velerov1api.Backup, snapCont *snapshotv1api.VolumeSnapshotContent, log logrus.FieldLogger) bool {
 
 	// compare backup name on label with current backup name
 	VSCBackupName := snapCont.Labels[BackupNameLabel]
 	currentBackupName := backup.Name
 
 	if VSCBackupName != currentBackupName {
-		return false, errors.New("volumesnapshot found from old backup")
+		return false
 	}
 
-	return true, nil
+	return true
 }
