@@ -2,13 +2,16 @@ package backup
 
 import (
 	datamoverv1alpha1 "github.com/konveyor/volume-snapshot-mover/api/v1alpha1"
+	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 // VolumeSnapshotBackupBackupItemAction is a backup item action plugin to backup
@@ -58,5 +61,25 @@ func (p *VolumeSnapshotBackupBackupItemAction) Execute(item runtime.Unstructured
 		return nil, nil, errors.WithStack(err)
 	}
 
-	return &unstructured.Unstructured{Object: vsbMap}, nil, nil
+	// Add dummy VSClass as additional item
+	dummyVSC := snapshotv1api.VolumeSnapshotClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-vsclass",
+			Labels: map[string]string{
+				util.WaitVolumeSnapshotBackup: "true",
+			},
+		},
+		Driver:         "ebs.csi.aws.com",
+		DeletionPolicy: "Retain",
+	}
+
+	additionalItems := []velero.ResourceIdentifier{}
+
+	// adding volumesnapshotbackup instance as an additional item, need to block the plugin execution till VSB CR is recon complete
+	additionalItems = append(additionalItems, velero.ResourceIdentifier{
+		GroupResource: schema.GroupResource{Group: "snapshot.storage.k8s.io", Resource: "volumesnapshotclasses"},
+		Name:          dummyVSC.Name,
+	})
+
+	return &unstructured.Unstructured{Object: vsbMap}, additionalItems, nil
 }

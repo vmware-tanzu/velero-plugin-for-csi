@@ -17,6 +17,8 @@ limitations under the License.
 package restore
 
 import (
+	"strconv"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
@@ -49,6 +51,23 @@ func (p *VolumeSnapshotClassRestoreItemAction) Execute(input *velero.RestoreItem
 
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &snapClass); err != nil {
 		return &velero.RestoreItemActionExecuteOutput{}, errors.Wrapf(err, "failed to convert input.Item from unstructured")
+	}
+
+	// check whether or not this VSClass is for blocking VSR until completed
+	isHasWait := snapClass.Labels[util.WaitVolumeSnapshotBackup]
+	boolIsWait, err := strconv.ParseBool(isHasWait)
+	if err != nil {
+		return nil, err
+	}
+
+	// block until all VSRs from this restore name are completed or timeout
+	// when completed do not restore this dummy VSClass
+	if boolIsWait {
+		util.WaitForDataMoverRestoreToComplete(snapClass.Labels[util.RestoreNameLabel], p.Log)
+
+		return &velero.RestoreItemActionExecuteOutput{
+			SkipRestore: true,
+		}, nil
 	}
 
 	additionalItems := []velero.ResourceIdentifier{}
