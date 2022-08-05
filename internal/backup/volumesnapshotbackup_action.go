@@ -1,6 +1,8 @@
 package backup
 
 import (
+	"fmt"
+
 	datamoverv1alpha1 "github.com/konveyor/volume-snapshot-mover/api/v1alpha1"
 	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/pkg/errors"
@@ -61,6 +63,8 @@ func (p *VolumeSnapshotBackupBackupItemAction) Execute(item runtime.Unstructured
 		return nil, nil, errors.WithStack(err)
 	}
 
+	// TODO ?: check if fake VSClass already exists
+
 	// Add dummy VSClass as additional item
 	dummyVSC := snapshotv1api.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
@@ -73,13 +77,17 @@ func (p *VolumeSnapshotBackupBackupItemAction) Execute(item runtime.Unstructured
 		DeletionPolicy: "Retain",
 	}
 
+	// TODO ?: need create call for fake vsclass
+
 	additionalItems := []velero.ResourceIdentifier{}
 
-	// adding volumesnapshotbackup instance as an additional item, need to block the plugin execution till VSB CR is recon complete
+	// adding dummy VSClass instance as an additional item for blocking VSR
 	additionalItems = append(additionalItems, velero.ResourceIdentifier{
 		GroupResource: schema.GroupResource{Group: "snapshot.storage.k8s.io", Resource: "volumesnapshotclasses"},
 		Name:          dummyVSC.Name,
 	})
+
+	p.Log.Infof("Add VSClass %s as an additional item", fmt.Sprintf("%s", dummyVSC.Name))
 
 	return &unstructured.Unstructured{Object: vsbMap}, additionalItems, nil
 }
