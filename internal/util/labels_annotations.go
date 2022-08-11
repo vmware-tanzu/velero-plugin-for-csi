@@ -45,6 +45,7 @@ const (
 
 	// Env vars
 	VolumeSnapshotMoverEnv = "VOLUME_SNAPSHOT_MOVER"
+	DatamoverTimeout       = "DATAMOVER_TIMEOUT"
 
 	// BackupNameLabel is the label key used to identify a backup by name.
 	BackupNameLabel = "velero.io/backup-name"
