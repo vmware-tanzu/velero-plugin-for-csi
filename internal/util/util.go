@@ -42,7 +42,7 @@ import (
 )
 
 const (
-	//TODO: use annotation from velero https://github.com/vmware-tanzu/velero/pull/2283
+	// TODO: use annotation from velero https://github.com/vmware-tanzu/velero/pull/2283
 	resticPodAnnotation = "backup.velero.io/backup-volumes"
 )
 
@@ -121,22 +121,43 @@ func IsPVCBackedUpByRestic(pvcNamespace, pvcName string, podClient corev1client.
 }
 
 // GetVolumeSnapshotClassForStorageClass returns a VolumeSnapshotClass for the supplied volume provisioner/ driver name.
-func GetVolumeSnapshotClassForStorageClass(provisioner string, snapshotClient snapshotter.SnapshotV1Interface) (*snapshotv1api.VolumeSnapshotClass, error) {
+func GetVolumeSnapshotClassForStorageClass(provisioner string, snapshotLocations []string, snapshotClient snapshotter.SnapshotV1Interface) (*snapshotv1api.VolumeSnapshotClass, error) {
 	snapshotClasses, err := snapshotClient.VolumeSnapshotClasses().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, errors.Wrap(err, "error listing volumesnapshot classes")
 	}
+
+	candidates := []snapshotv1api.VolumeSnapshotClass{}
+
 	// We pick the volumesnapshotclass that matches the CSI driver name and has a 'velero.io/csi-volumesnapshot-class'
 	// label. This allows multiple VolumesnapshotClasses for the same driver with different values for the
 	// other fields in the spec.
 	// https://github.com/kubernetes-csi/external-snapshotter/blob/release-4.2/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml
 	for _, sc := range snapshotClasses.Items {
 		_, hasLabelSelector := sc.Labels[VolumeSnapshotClassSelectorLabel]
-		if sc.Driver == provisioner && hasLabelSelector {
-			return &sc, nil
+		if !hasLabelSelector || sc.Driver != provisioner {
+			continue
 		}
+
+		location, hasLocationSelector := sc.Labels[VolumeSnapshotLocationSelectorLabel]
+		if hasLocationSelector {
+			for _, l := range snapshotLocations {
+				if location == l {
+					return &sc, nil
+				}
+			}
+			// This class isn't intended for any of our locations, ignore it.
+			continue
+		}
+
+		candidates = append(candidates, sc)
 	}
-	return nil, errors.Errorf("failed to get volumesnapshotclass for provisioner %s, ensure that the desired volumesnapshot class has the %s label", provisioner, VolumeSnapshotClassSelectorLabel)
+
+	if len(candidates) == 0 {
+		return nil, errors.Errorf("failed to get volumesnapshotclass for provisioner %q, ensure that the desired volumesnapshot class has the %q label", provisioner, VolumeSnapshotClassSelectorLabel)
+	}
+
+	return &candidates[0], nil
 }
 
 // GetVolumeSnapshotContentForVolumeSnapshot returns the volumesnapshotcontent object associated with the volumesnapshot
@@ -185,7 +206,6 @@ func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1api.VolumeSnap
 
 		return true, nil
 	})
-
 	if err != nil {
 		if err == wait.ErrWaitTimeout {
 			log.Errorf("Timed out awaiting reconciliation of volumesnapshot %s/%s", volSnap.Namespace, volSnap.Name)

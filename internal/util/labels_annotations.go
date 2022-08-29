@@ -17,14 +17,15 @@ limitations under the License.
 package util
 
 const (
-	VolumeSnapshotLabel              = "velero.io/volume-snapshot-name"
-	VolumeSnapshotHandleAnnotation   = "velero.io/csi-volumesnapshot-handle"
-	VolumeSnapshotRestoreSize        = "velero.io/vsi-volumesnapshot-restore-size"
-	CSIDriverNameAnnotation          = "velero.io/csi-driver-name"
-	CSIDeleteSnapshotSecretName      = "velero.io/csi-deletesnapshotsecret-name"
-	CSIDeleteSnapshotSecretNamespace = "velero.io/csi-deletesnapshotsecret-namespace"
-	CSIVSCDeletionPolicy             = "velero.io/csi-vsc-deletion-policy"
-	VolumeSnapshotClassSelectorLabel = "velero.io/csi-volumesnapshot-class"
+	VolumeSnapshotLabel                 = "velero.io/volume-snapshot-name"
+	VolumeSnapshotHandleAnnotation      = "velero.io/csi-volumesnapshot-handle"
+	VolumeSnapshotRestoreSize           = "velero.io/vsi-volumesnapshot-restore-size"
+	CSIDriverNameAnnotation             = "velero.io/csi-driver-name"
+	CSIDeleteSnapshotSecretName         = "velero.io/csi-deletesnapshotsecret-name"
+	CSIDeleteSnapshotSecretNamespace    = "velero.io/csi-deletesnapshotsecret-namespace"
+	CSIVSCDeletionPolicy                = "velero.io/csi-vsc-deletion-policy"
+	VolumeSnapshotClassSelectorLabel    = "velero.io/csi-volumesnapshot-class"
+	VolumeSnapshotLocationSelectorLabel = "velero.io/csi-volumesnapshot-location"
 
 	// There is no release w/ these constants exported. Using the strings for now.
 	// CSI Labels volumesnapshotclass

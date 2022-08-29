@@ -659,12 +659,42 @@ func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
 		Driver: "baz.csi.k8s.io",
 	}
 
-	objs := []runtime.Object{hostpathClass, fooClass, barClass, bazClass}
+	s3LocationClass := &snapshotv1api.VolumeSnapshotClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "bar-s3",
+			Labels: map[string]string{
+				VolumeSnapshotClassSelectorLabel:    "true",
+				VolumeSnapshotLocationSelectorLabel: "s3",
+			},
+		},
+		Driver: "bar.csi.k8s.io",
+	}
+
+	ignoredLocationClass := &snapshotv1api.VolumeSnapshotClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "ignore-s3",
+			Labels: map[string]string{
+				VolumeSnapshotClassSelectorLabel:    "true",
+				VolumeSnapshotLocationSelectorLabel: "ignore",
+			},
+		},
+		Driver: "bar.csi.k8s.io",
+	}
+
+	objs := []runtime.Object{
+		ignoredLocationClass,
+		hostpathClass,
+		fooClass,
+		barClass,
+		bazClass,
+		s3LocationClass,
+	}
 	fakeClient := snapshotFake.NewSimpleClientset(objs...)
 
 	testCases := []struct {
 		name        string
 		driverName  string
+		locations   []string
 		expectedVSC *snapshotv1api.VolumeSnapshotClass
 		expectError bool
 	}{
@@ -698,11 +728,18 @@ func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
 			expectedVSC: nil,
 			expectError: true,
 		},
+		{
+			name:        "should respect volume snapshot location",
+			driverName:  "bar.csi.k8s.io",
+			locations:   []string{"s3"},
+			expectedVSC: s3LocationClass,
+			expectError: false,
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualVSC, actualError := GetVolumeSnapshotClassForStorageClass(tc.driverName, fakeClient.SnapshotV1())
+			actualVSC, actualError := GetVolumeSnapshotClassForStorageClass(tc.driverName, tc.locations, fakeClient.SnapshotV1())
 
 			if tc.expectError {
 				assert.NotNil(t, actualError)
