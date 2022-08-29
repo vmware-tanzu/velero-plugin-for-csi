@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"context"
 	"fmt"
 
 	datamoverv1alpha1 "github.com/konveyor/volume-snapshot-mover/api/v1alpha1"
@@ -9,11 +10,12 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	"github.com/vmware-tanzu/velero/pkg/kuberesource"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 // VolumeSnapshotBackupBackupItemAction is a backup item action plugin to backup
@@ -63,12 +65,10 @@ func (p *VolumeSnapshotBackupBackupItemAction) Execute(item runtime.Unstructured
 		return nil, nil, errors.WithStack(err)
 	}
 
-	// TODO ?: check if fake VSClass already exists
-
-	// Add dummy VSClass as additional item
-	dummyVSC := snapshotv1api.VolumeSnapshotClass{
+	// Add temp VSClass as additional item
+	tempVSC := snapshotv1api.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-vsclass",
+			Name: fmt.Sprintf("%s-snapclass", backup.Name),
 			Labels: map[string]string{
 				util.WaitVolumeSnapshotBackup: "true",
 			},
@@ -77,17 +77,27 @@ func (p *VolumeSnapshotBackupBackupItemAction) Execute(item runtime.Unstructured
 		DeletionPolicy: "Retain",
 	}
 
-	// TODO ?: need create call for fake vsclass
+	_, snapshotClient, err := util.GetClients()
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
+	}
+
+	_, err = snapshotClient.SnapshotV1().VolumeSnapshotClasses().Create(context.TODO(), &tempVSC, metav1.CreateOptions{})
+
+	if apierrors.IsAlreadyExists(err) {
+		p.Log.Infof("skipping creation of volumesnapshotclass %v as already exists", tempVSC.Name)
+
+	} else if err != nil {
+		return nil, nil, errors.Wrapf(err, "error creating volumesnapshotclass")
+	}
 
 	additionalItems := []velero.ResourceIdentifier{}
 
-	// adding dummy VSClass instance as an additional item for blocking VSR
+	// adding temp VSClass instance as an additional item for blocking VSRs
 	additionalItems = append(additionalItems, velero.ResourceIdentifier{
-		GroupResource: schema.GroupResource{Group: "snapshot.storage.k8s.io", Resource: "volumesnapshotclasses"},
-		Name:          dummyVSC.Name,
+		GroupResource: kuberesource.VolumeSnapshotClasses,
+		Name:          tempVSC.Name,
 	})
-
-	p.Log.Infof("Add VSClass %s as an additional item", fmt.Sprintf("%s", dummyVSC.Name))
 
 	return &unstructured.Unstructured{Object: vsbMap}, additionalItems, nil
 }
