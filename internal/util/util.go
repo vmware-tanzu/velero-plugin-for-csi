@@ -302,9 +302,19 @@ func HasBackupLabel(o *metav1.ObjectMeta, backupName string) bool {
 // Get VolumeSnapshotBackup CR with status data
 func GetVolumeSnapshotbackupWithStatusData(volumeSnapshotbackupNS string, volumeSnapshotName string, log logrus.FieldLogger) (datamoverv1alpha1.VolumeSnapshotBackup, error) {
 
-	timeout := 10 * time.Minute
-	interval := 5 * time.Second
 	vsb := datamoverv1alpha1.VolumeSnapshotBackup{}
+	// default timeout value is 10
+	timeoutValue := "10m"
+	// use timeout value if configured
+	if len(os.Getenv(DatamoverTimeout)) > 0 {
+		timeoutValue = os.Getenv(DatamoverTimeout)
+	}
+
+	timeout, err := time.ParseDuration(timeoutValue)
+	if err != nil {
+		return vsb, errors.Wrapf(err, "error parsing the datamover timout")
+	}
+	interval := 5 * time.Second
 
 	snapMoverClient, err := GetVolumeSnapshotMoverClient()
 	if err != nil {
@@ -364,10 +374,19 @@ func DoesVolumeSnapshotBackupExistForVSC(snapCont *snapshotv1api.VolumeSnapshotC
 // block until replicationDestination is completed to use that snaphandle
 func GetVolumeSnapshotRestoreWithCompletedStatus(volumeSnapshotNS string, volumeSnapshotRestoreName string, protectedNS string, log logrus.FieldLogger) (bool, error) {
 
-	timeout := 10 * time.Minute
+	vsr := datamoverv1alpha1.VolumeSnapshotRestore{}
+	// default timeout value is 10
+	timeoutValue := "10m"
+	// use timeout value if configured
+	if len(os.Getenv(DatamoverTimeout)) > 0 {
+		timeoutValue = os.Getenv(DatamoverTimeout)
+	}
+	timeout, err := time.ParseDuration(timeoutValue)
+	if err != nil {
+		return false, errors.Wrapf(err, "error parsing the datamover timout")
+	}
 	interval := 5 * time.Second
 
-	vsr := datamoverv1alpha1.VolumeSnapshotRestore{}
 	snapMoverClient, err := GetVolumeSnapshotMoverClient()
 	if err != nil {
 		return false, err
