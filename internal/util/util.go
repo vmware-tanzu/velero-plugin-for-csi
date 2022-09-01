@@ -38,7 +38,7 @@ import (
 
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/label"
-	"github.com/vmware-tanzu/velero/pkg/restic"
+	"github.com/vmware-tanzu/velero/pkg/podvolume"
 )
 
 const (
@@ -105,7 +105,7 @@ func IsPVCBackedUpByRestic(pvcNamespace, pvcName string, podClient corev1client.
 	}
 
 	for _, p := range pods {
-		resticVols := restic.GetPodVolumesUsingRestic(&p, defaultVolumesToRestic)
+		resticVols := podvolume.GetPodVolumesUsingRestic(&p, defaultVolumesToRestic)
 		if len(resticVols) > 0 {
 			volName, err := GetPodVolumeNameForPVC(p, pvcName)
 			if err != nil {
