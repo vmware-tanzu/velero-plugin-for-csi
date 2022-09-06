@@ -69,9 +69,9 @@ func (p *VolumeSnapshotContentBackupItemAction) Execute(item runtime.Unstructure
 		isVSForCurrentBackup := util.VSBHasVSBackupName(backup, &snapCont, p.Log)
 
 		if !isVSForCurrentBackup {
-			p.Log.Infof("stale volumesnapshot found with backup name: %s", snapCont.Labels[util.BackupNameLabel])
+			p.Log.Warnf("stale volumesnapshot found %s", snapCont.Spec.VolumeSnapshotRef.Name)
 
-			return nil, nil, errors.New("volumesnapshot found from prior backup")
+			return nil, nil, nil
 		}
 
 		_, snapshotClient, err := util.GetClients()
