@@ -73,7 +73,8 @@ func (p *VolumeSnapshotBackupBackupItemAction) Execute(item runtime.Unstructured
 				util.WaitVolumeSnapshotBackup: "true",
 			},
 		},
-		Driver:         "ebs.csi.aws.com",
+		// dummy driver as it is not used, but the field is required
+		Driver:         "foo",
 		DeletionPolicy: "Retain",
 	}
 
@@ -85,10 +86,10 @@ func (p *VolumeSnapshotBackupBackupItemAction) Execute(item runtime.Unstructured
 	_, err = snapshotClient.SnapshotV1().VolumeSnapshotClasses().Create(context.TODO(), &tempVSC, metav1.CreateOptions{})
 
 	if apierrors.IsAlreadyExists(err) {
-		p.Log.Infof("skipping creation of volumesnapshotclass %v as already exists", tempVSC.Name)
+		p.Log.Infof("skipping creation of temp volumesnapshotclass %v as already exists", tempVSC.Name)
 
 	} else if err != nil {
-		return nil, nil, errors.Wrapf(err, "error creating volumesnapshotclass")
+		return nil, nil, errors.Wrapf(err, "error creating temp volumesnapshotclass")
 	}
 
 	additionalItems := []velero.ResourceIdentifier{}
