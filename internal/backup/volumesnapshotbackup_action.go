@@ -1,12 +1,19 @@
 package backup
 
 import (
+	"context"
+	"fmt"
+
 	datamoverv1alpha1 "github.com/konveyor/volume-snapshot-mover/api/v1alpha1"
+	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	"github.com/vmware-tanzu/velero/pkg/kuberesource"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -58,5 +65,40 @@ func (p *VolumeSnapshotBackupBackupItemAction) Execute(item runtime.Unstructured
 		return nil, nil, errors.WithStack(err)
 	}
 
-	return &unstructured.Unstructured{Object: vsbMap}, nil, nil
+	// Add temp VSClass as additional item
+	tempVSC := snapshotv1api.VolumeSnapshotClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: fmt.Sprintf("%s-snapclass", backup.Name),
+			Labels: map[string]string{
+				util.WaitVolumeSnapshotBackup: "true",
+			},
+		},
+		// dummy driver as it is not used, but the field is required
+		Driver:         "foo",
+		DeletionPolicy: "Retain",
+	}
+
+	_, snapshotClient, err := util.GetClients()
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
+	}
+
+	_, err = snapshotClient.SnapshotV1().VolumeSnapshotClasses().Create(context.TODO(), &tempVSC, metav1.CreateOptions{})
+
+	if apierrors.IsAlreadyExists(err) {
+		p.Log.Infof("skipping creation of temp volumesnapshotclass %v as already exists", tempVSC.Name)
+
+	} else if err != nil {
+		return nil, nil, errors.Wrapf(err, "error creating temp volumesnapshotclass")
+	}
+
+	additionalItems := []velero.ResourceIdentifier{}
+
+	// adding temp VSClass instance as an additional item for blocking VSRs
+	additionalItems = append(additionalItems, velero.ResourceIdentifier{
+		GroupResource: kuberesource.VolumeSnapshotClasses,
+		Name:          tempVSC.Name,
+	})
+
+	return &unstructured.Unstructured{Object: vsbMap}, additionalItems, nil
 }

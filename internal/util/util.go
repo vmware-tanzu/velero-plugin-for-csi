@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -370,52 +371,6 @@ func DoesVolumeSnapshotBackupExistForVSC(snapCont *snapshotv1api.VolumeSnapshotC
 	return false, err
 }
 
-// block until replicationDestination is completed to use that snaphandle
-func GetVolumeSnapshotRestoreWithCompletedStatus(volumeSnapshotNS string, volumeSnapshotRestoreName string, protectedNS string, log logrus.FieldLogger) (bool, error) {
-
-	vsr := datamoverv1alpha1.VolumeSnapshotRestore{}
-	// default timeout value is 10
-	timeoutValue := "10m"
-	// use timeout value if configured
-	if len(os.Getenv(DatamoverTimeout)) > 0 {
-		timeoutValue = os.Getenv(DatamoverTimeout)
-	}
-	timeout, err := time.ParseDuration(timeoutValue)
-	if err != nil {
-		return false, errors.Wrapf(err, "error parsing the datamover timout")
-	}
-	interval := 5 * time.Second
-
-	snapMoverClient, err := GetVolumeSnapshotMoverClient()
-	if err != nil {
-		return false, err
-	}
-
-	err = wait.PollImmediate(interval, timeout, func() (bool, error) {
-		err := snapMoverClient.Get(context.TODO(), client.ObjectKey{Namespace: volumeSnapshotNS, Name: volumeSnapshotRestoreName}, &vsr)
-		log.Infof("Inside IsVolumeSnapshotRestoreCompleted, Fetched VSR: %v/%v ", volumeSnapshotRestoreName, volumeSnapshotNS)
-		if err != nil {
-			return false, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotrestore %s", volumeSnapshotRestoreName))
-		}
-
-		if len(vsr.Status.SnapshotHandle) > 0 && vsr.Status.Phase == datamoverv1alpha1.SnapMoverRestorePhaseCompleted {
-			log.Infof("VSR %v has completed", volumeSnapshotRestoreName)
-			return true, nil
-		}
-		log.Infof("Waiting for volumesnapshotrestore %s/%s to complete. Retrying in %ds", volumeSnapshotRestoreName, volumeSnapshotNS, interval/time.Second)
-		return false, nil
-	})
-
-	if err != nil {
-		if err == wait.ErrWaitTimeout {
-			log.Errorf("Timed out awaiting reconciliation of volumesnapshotrestore %s", volumeSnapshotRestoreName)
-		}
-		return false, err
-	}
-	log.Infof("Returning from IsVolumeSnapshotRestoreCompleted as true: %v", vsr.Name)
-	return true, nil
-}
-
 //Waits for volumesnapshotcontent to be in ready state
 func WaitForVolumeSnapshotContentToBeReady(snapCont snapshotv1api.VolumeSnapshotContent, snapshotClient snapshotter.SnapshotV1Interface, log logrus.FieldLogger) (bool, error) {
 	// We'll wait 10m for the VSC to be reconciled polling every 5s
@@ -477,6 +432,87 @@ func GetDataMoverCredName(backup *velerov1api.Backup, protectedNS string, log lo
 	}
 
 	return resticSecretName, nil
+}
+
+func CheckIfVolumeSnapshotRestoresAreComplete(ctx context.Context, volumesnapshotrestores datamoverv1alpha1.VolumeSnapshotRestoreList, log logrus.FieldLogger) error {
+	eg, _ := errgroup.WithContext(ctx)
+	timeoutValue := "10m"
+
+	// use timeout value if configured
+	if len(os.Getenv(DatamoverTimeout)) > 0 {
+		timeoutValue = os.Getenv(DatamoverTimeout)
+	}
+	timeout, err := time.ParseDuration(timeoutValue)
+	if err != nil {
+		return errors.Wrapf(err, "error parsing datamover timout")
+	}
+	interval := 5 * time.Second
+
+	volumeSnapMoverClient, err := GetVolumeSnapshotMoverClient()
+	if err != nil {
+		return err
+	}
+
+	for _, vsr := range volumesnapshotrestores.Items {
+		volumesnapshotrestore := vsr
+		eg.Go(func() error {
+
+			err := wait.PollImmediate(interval, timeout, func() (bool, error) {
+				tmpVSR := datamoverv1alpha1.VolumeSnapshotRestore{}
+				err := volumeSnapMoverClient.Get(ctx, client.ObjectKey{Namespace: volumesnapshotrestore.Namespace, Name: volumesnapshotrestore.Name}, &tmpVSR)
+				if err != nil {
+					return false, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotrestore %s/%s", volumesnapshotrestore.Namespace, volumesnapshotrestore.Name))
+				}
+
+				// current VSR in list is still in progress
+				if len(tmpVSR.Status.SnapshotHandle) == 0 || len(tmpVSR.Status.Phase) == 0 || tmpVSR.Status.Phase != datamoverv1alpha1.SnapMoverRestorePhaseCompleted {
+					log.Infof("Waiting for volumesnapshotrestore to complete %s/%s. Retrying in %ds", volumesnapshotrestore.Namespace, volumesnapshotrestore.Name, interval/time.Second)
+					return false, nil
+				}
+
+				// current VSR in list has completed
+				return true, nil
+			})
+
+			if err == wait.ErrWaitTimeout {
+				log.Errorf("Timed out awaiting reconciliation of volumesnapshotrestore %s/%s", volumesnapshotrestore.Namespace, volumesnapshotrestore.Name)
+			}
+			return err
+		})
+	}
+	return eg.Wait()
+}
+
+func WaitForDataMoverRestoreToComplete(restoreName string, log logrus.FieldLogger) error {
+
+	//wait for all the VSRs to be complete
+	volumeSnapMoverClient, err := GetVolumeSnapshotMoverClient()
+	if err != nil {
+		log.Errorf(err.Error())
+		return err
+	}
+
+	VSRList := datamoverv1alpha1.VolumeSnapshotRestoreList{}
+	VSRListOptions := client.MatchingLabels(map[string]string{
+		velerov1api.RestoreNameLabel: restoreName,
+	})
+
+	err = volumeSnapMoverClient.List(context.TODO(), &VSRList, VSRListOptions)
+	if err != nil {
+		log.Errorf(err.Error())
+		return err
+	}
+
+	//Wait for all VSRs to complete
+	if len(VSRList.Items) > 0 {
+
+		err = CheckIfVolumeSnapshotRestoresAreComplete(context.Background(), VSRList, log)
+		if err != nil {
+			log.Errorf("failed to wait for VolumeSnapshotRestores to be completed: %s", err.Error())
+			return err
+		}
+	}
+	return nil
 }
 
 func VSBHasVSBackupName(backup *velerov1api.Backup, snapCont *snapshotv1api.VolumeSnapshotContent, log logrus.FieldLogger) bool {

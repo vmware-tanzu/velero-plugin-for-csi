@@ -42,6 +42,7 @@ const (
 	VolumeSnapshotMoverSourcePVCSize         = "datamover.io/source-pvc-size"
 	VolumeSnapshotMoverSourcePVCStorageClass = "datamover.io/source-pvc-storageclass"
 	VolumeSnapshotMoverVolumeSnapshotClass   = "datamover.io/source-pvc-volumesnapshotclass"
+	WaitVolumeSnapshotBackup                 = "datamover.io/wait-for-vsb"
 
 	// Env vars
 	VolumeSnapshotMoverEnv = "VOLUME_SNAPSHOT_MOVER"

@@ -2,6 +2,7 @@ package restore
 
 import (
 	"context"
+
 	datamoverv1alpha1 "github.com/konveyor/volume-snapshot-mover/api/v1alpha1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -79,18 +80,6 @@ func (p *VolumeSnapshotRestoreRestoreItemAction) Execute(input *velero.RestoreIt
 		return nil, errors.Wrapf(err, "error creating volumesnapshotrestore CR")
 	}
 	p.Log.Infof("[vsb-restore] vsr created: %s", vsr.Name)
-
-	// block until VSR is completed for VolSync VSC handle
-	volSnapshotRestoreCompleted, err := util.GetVolumeSnapshotRestoreWithCompletedStatus(vsr.Namespace, vsr.Name, vsr.Spec.ProtectedNamespace, p.Log)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	if !volSnapshotRestoreCompleted {
-		return nil, errors.New("volumeSnapshotRestore has not completed")
-	}
-
-	p.Log.Infof("[vsb-restore] VSR completed: %s", vsr.Name)
 
 	// don't restore VSB
 	return &velero.RestoreItemActionExecuteOutput{
