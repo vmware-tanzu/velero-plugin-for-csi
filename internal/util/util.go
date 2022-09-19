@@ -51,7 +51,9 @@ import (
 
 const (
 	//TODO: use annotation from velero https://github.com/vmware-tanzu/velero/pull/2283
-	resticPodAnnotation = "backup.velero.io/backup-volumes"
+	resticPodAnnotation   = "backup.velero.io/backup-volumes"
+	ReconciledReasonError = "Error"
+	ConditionReconciled   = "Reconciled"
 )
 
 func GetPVForPVC(pvc *corev1api.PersistentVolumeClaim, corev1 corev1client.PersistentVolumesGetter) (*corev1api.PersistentVolume, error) {
@@ -325,6 +327,18 @@ func GetVolumeSnapshotbackupWithStatusData(volumeSnapshotbackupNS string, volume
 		err := snapMoverClient.Get(context.TODO(), client.ObjectKey{Namespace: volumeSnapshotbackupNS, Name: volumeSnapshotName}, &vsb)
 		if err != nil {
 			return false, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotbackup %s/%s", volumeSnapshotbackupNS, volumeSnapshotName))
+		}
+
+		if len(vsb.Status.Conditions) == 0 {
+			log.Infof("Waiting for volumesnapshotbackup %s to have conditions. Retrying in %ds", vsb.Name, interval/time.Second)
+			return false, nil
+		}
+
+		// check for status failure first
+		for _, condition := range vsb.Status.Conditions {
+			if condition.Status == metav1.ConditionFalse && condition.Reason == ReconciledReasonError && condition.Type == ConditionReconciled {
+				return false, errors.Errorf("volumesnapshotbackup %v has failed status", vsb.Name)
+			}
 		}
 
 		if len(vsb.Status.ResticRepository) == 0 || len(vsb.Status.SourcePVCData.Name) == 0 || len(vsb.Status.SourcePVCData.Size) == 0 || len(vsb.Status.SourcePVCData.StorageClassName) == 0 || len(vsb.Status.VolumeSnapshotClassName) == 0 {
