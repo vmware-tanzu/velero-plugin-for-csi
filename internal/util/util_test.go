@@ -621,7 +621,7 @@ func TestIsPVCBackedUpByRestic(t *testing.T) {
 	}
 }
 
-func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
+func TestGetVolumeSnapshotClassForStorageClass(t *testing.T) {
 	hostpathClass := &snapshotv1api.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "hostpath",
