@@ -206,6 +206,10 @@ func TestResetPVCSpec(t *testing.T) {
 						Kind: "something-that-does-not-exist",
 						Name: "not-found",
 					},
+					DataSourceRef: &corev1api.TypedLocalObjectReference{
+						Kind: "something-that-does-not-exist",
+						Name: "not-found",
+					},
 				},
 			},
 			vsName: "test-vs",
@@ -227,6 +231,7 @@ func TestResetPVCSpec(t *testing.T) {
 			assert.NotNil(t, tc.pvc.Spec.DataSource, "expected change to Spec.DataSource missing")
 			assert.Equalf(t, tc.pvc.Spec.DataSource.Kind, "VolumeSnapshot", "expected change to Spec.DataSource.Kind missing, Want: VolumeSnapshot, Got: %s", tc.pvc.Spec.DataSource.Kind)
 			assert.Equalf(t, tc.pvc.Spec.DataSource.Name, tc.vsName, "expected change to Spec.DataSource.Name missing, Want: %s, Got: %s", tc.vsName, tc.pvc.Spec.DataSource.Name)
+			assert.Equalf(t, tc.pvc.Spec.DataSourceRef.Name, tc.vsName, "expected change to Spec.DataSourceRef.Name missing, Want: %s, Got: %s", tc.vsName, tc.pvc.Spec.DataSourceRef.Name)
 		})
 	}
 }
