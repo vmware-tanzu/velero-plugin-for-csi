@@ -478,6 +478,11 @@ func CheckIfVolumeSnapshotRestoresAreComplete(ctx context.Context, volumesnapsho
 					return false, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotrestore %s/%s", volumesnapshotrestore.Namespace, volumesnapshotrestore.Name))
 				}
 
+				// check for a failed VSR
+				if tmpVSR.Status.Phase == datamoverv1alpha1.SnapMoverRestorePhaseFailed {
+					return false, errors.Errorf("volumesnapshotrestore %s has failed status", tmpVSR.Name)
+				}
+
 				// current VSR in list is still in progress
 				if len(tmpVSR.Status.SnapshotHandle) == 0 || len(tmpVSR.Status.Phase) == 0 || tmpVSR.Status.Phase != datamoverv1alpha1.SnapMoverRestorePhaseCompleted {
 					log.Infof("Waiting for volumesnapshotrestore to complete %s/%s. Retrying in %ds", volumesnapshotrestore.Namespace, volumesnapshotrestore.Name, interval/time.Second)
@@ -485,6 +490,7 @@ func CheckIfVolumeSnapshotRestoresAreComplete(ctx context.Context, volumesnapsho
 				}
 
 				// current VSR in list has completed
+				log.Infof("volumesnapshotrestore %s completed", volumesnapshotrestore.Name)
 				return true, nil
 			})
 

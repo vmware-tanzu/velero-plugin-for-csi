@@ -60,7 +60,10 @@ func (p *VolumeSnapshotClassRestoreItemAction) Execute(input *velero.RestoreItem
 	// block until all VSRs from this restore name are completed or timeout
 	// when completed do not restore this temp VSClass
 	if boolHasWait {
-		util.WaitForDataMoverRestoreToComplete(input.Restore.Name, p.Log)
+		err := util.WaitForDataMoverRestoreToComplete(input.Restore.Name, p.Log)
+		if err != nil {
+			return nil, err
+		}
 
 		return &velero.RestoreItemActionExecuteOutput{
 			SkipRestore: true,
