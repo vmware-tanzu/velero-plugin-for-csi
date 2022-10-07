@@ -75,6 +75,12 @@ func resetPVCSpec(pvc *corev1api.PersistentVolumeClaim, vsName string) {
 		Kind:     "VolumeSnapshot",
 		Name:     vsName,
 	}
+
+	pvc.Spec.DataSourceRef = &corev1api.TypedLocalObjectReference{
+		APIGroup: &snapshotv1api.SchemeGroupVersion.Group,
+		Kind:     "VolumeSnapshot",
+		Name:     vsName,
+	}
 }
 
 func setPVCStorageResourceRequest(pvc *corev1api.PersistentVolumeClaim, restoreSize resource.Quantity, log logrus.FieldLogger) {
