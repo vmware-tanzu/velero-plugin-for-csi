@@ -71,11 +71,13 @@ func resetPVCSpec(pvc *corev1api.PersistentVolumeClaim, vsName string) {
 	// Restore operation for the PVC will use the volumesnapshot as the data source.
 	// So clear out the volume name, which is a ref to the PV
 	pvc.Spec.VolumeName = ""
-	pvc.Spec.DataSource = &corev1api.TypedLocalObjectReference{
+	dataSourceRef := &corev1api.TypedLocalObjectReference{
 		APIGroup: &snapshotv1api.SchemeGroupVersion.Group,
 		Kind:     "VolumeSnapshot",
 		Name:     vsName,
 	}
+	pvc.Spec.DataSource = dataSourceRef
+	pvc.Spec.DataSourceRef = dataSourceRef
 }
 
 func setPVCStorageResourceRequest(pvc *corev1api.PersistentVolumeClaim, restoreSize resource.Quantity, log logrus.FieldLogger) {
