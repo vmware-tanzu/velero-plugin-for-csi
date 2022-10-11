@@ -95,6 +95,10 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 		return nil, nil, errors.WithStack(err)
 	}
 
+	annotations := map[string]string{
+		util.MustIncludeAdditionalItemAnnotation: "true",
+	}
+
 	if vsc != nil {
 		// when we are backing up volumesnapshots created outside of velero, we will not
 		// await volumesnapshot reconciliation and in this case GetVolumeSnapshotContentForVolumeSnapshot
@@ -105,23 +109,19 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 			GroupResource: kuberesource.VolumeSnapshotContents,
 			Name:          vsc.Name,
 		})
-		vals := map[string]string{
-			util.CSIVSCDeletionPolicy: string(vsc.Spec.DeletionPolicy),
-		}
+		annotations[util.CSIVSCDeletionPolicy] = string(vsc.Spec.DeletionPolicy)
 
 		if vsc.Status != nil {
 			if vsc.Status.SnapshotHandle != nil {
 				// Capture storage provider snapshot handle and CSI driver name
 				// to be used on restore to create a static volumesnapshotcontent that will be the source of the volumesnapshot.
-				vals[util.VolumeSnapshotHandleAnnotation] = *vsc.Status.SnapshotHandle
-				vals[util.CSIDriverNameAnnotation] = vsc.Spec.Driver
+				annotations[util.VolumeSnapshotHandleAnnotation] = *vsc.Status.SnapshotHandle
+				annotations[util.CSIDriverNameAnnotation] = vsc.Spec.Driver
 			}
 			if vsc.Status.RestoreSize != nil {
-				vals[util.VolumeSnapshotRestoreSize] = resource.NewQuantity(*vsc.Status.RestoreSize, resource.BinarySI).String()
+				annotations[util.VolumeSnapshotRestoreSize] = resource.NewQuantity(*vsc.Status.RestoreSize, resource.BinarySI).String()
 			}
 		}
-		// save newly applied annotations into the backed-up volumesnapshot item
-		util.AddAnnotations(&vs.ObjectMeta, vals)
 
 		if backupOngoing {
 			p.Log.Infof("Patching volumensnapshotcontent %s with velero BackupNameLabel", vsc.Name)
@@ -142,6 +142,9 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 			}
 		}
 	}
+
+	// save newly applied annotations into the backed-up volumesnapshot item
+	util.AddAnnotations(&vs.ObjectMeta, annotations)
 
 	vsMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vs)
 	if err != nil {

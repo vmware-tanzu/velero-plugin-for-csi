@@ -35,4 +35,7 @@ const (
 	// CSI Labels volumesnapshotcontents
 	PrefixedSnapshotterSecretNameKey      = "csi.storage.k8s.io/snapshotter-secret-name"
 	PrefixedSnapshotterSecretNamespaceKey = "csi.storage.k8s.io/snapshotter-secret-namespace"
+
+	// Velero checks this annotation to determine whether to skip resource excluding check.
+	MustIncludeAdditionalItemAnnotation = "backup.velero.io/must-include-additional-items"
 )
