@@ -134,12 +134,16 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 	}
 	p.Log.Infof("Created volumesnapshot %s", fmt.Sprintf("%s/%s", upd.Namespace, upd.Name))
 
-	vals := map[string]string{
+	labels := map[string]string{
 		util.VolumeSnapshotLabel:    upd.Name,
 		velerov1api.BackupNameLabel: backup.Name,
 	}
-	util.AddAnnotations(&pvc.ObjectMeta, vals)
-	util.AddLabels(&pvc.ObjectMeta, vals)
+
+	annotations := labels
+	annotations[util.MustIncludeAdditionalItemAnnotation] = "true"
+
+	util.AddAnnotations(&pvc.ObjectMeta, annotations)
+	util.AddLabels(&pvc.ObjectMeta, labels)
 
 	additionalItems := []velero.ResourceIdentifier{
 		{

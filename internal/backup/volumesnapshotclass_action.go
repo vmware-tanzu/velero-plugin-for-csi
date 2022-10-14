@@ -21,6 +21,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -60,8 +61,17 @@ func (p *VolumeSnapshotClassBackupItemAction) Execute(item runtime.Unstructured,
 			Name:          snapClass.Annotations[util.PrefixedSnapshotterListSecretNameKey],
 			Namespace:     snapClass.Annotations[util.PrefixedSnapshotterListSecretNamespaceKey],
 		})
+
+		util.AddAnnotations(&snapClass.ObjectMeta, map[string]string{
+			util.MustIncludeAdditionalItemAnnotation: "true",
+		})
+	}
+
+	snapClassMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&snapClass)
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
 	}
 
 	p.Log.Infof("Returning from VolumeSnapshotClassBackupItemAction with %d additionalItems to backup", len(additionalItems))
-	return item, additionalItems, nil
+	return &unstructured.Unstructured{Object: snapClassMap}, additionalItems, nil
 }
