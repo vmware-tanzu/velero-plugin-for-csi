@@ -21,6 +21,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -64,8 +65,17 @@ func (p *VolumeSnapshotContentBackupItemAction) Execute(item runtime.Unstructure
 			Name:          snapCont.Annotations[util.PrefixedSnapshotterSecretNameKey],
 			Namespace:     snapCont.Annotations[util.PrefixedSnapshotterSecretNamespaceKey],
 		})
+
+		util.AddAnnotations(&snapCont.ObjectMeta, map[string]string{
+			util.MustIncludeAdditionalItemAnnotation: "true",
+		})
+	}
+
+	snapContMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&snapCont)
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
 	}
 
 	p.Log.Infof("Returning from VolumeSnapshotContentBackupItemAction with %d additionalItems to backup", len(additionalItems))
-	return item, additionalItems, nil
+	return &unstructured.Unstructured{Object: snapContMap}, additionalItems, nil
 }
