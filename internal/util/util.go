@@ -38,12 +38,7 @@ import (
 
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/label"
-	"github.com/vmware-tanzu/velero/pkg/restic"
-)
-
-const (
-	//TODO: use annotation from velero https://github.com/vmware-tanzu/velero/pull/2283
-	resticPodAnnotation = "backup.velero.io/backup-volumes"
+	"github.com/vmware-tanzu/velero/pkg/podvolume"
 )
 
 func GetPVForPVC(pvc *corev1api.PersistentVolumeClaim, corev1 corev1client.PersistentVolumesGetter) (*corev1api.PersistentVolume, error) {
@@ -98,20 +93,20 @@ func Contains(slice []string, key string) bool {
 	return false
 }
 
-func IsPVCBackedUpByRestic(pvcNamespace, pvcName string, podClient corev1client.PodsGetter, defaultVolumesToRestic bool) (bool, error) {
+func IsPVCDefaultToFSBackup(pvcNamespace, pvcName string, podClient corev1client.PodsGetter, defaultVolumesToFsBackup bool) (bool, error) {
 	pods, err := GetPodsUsingPVC(pvcNamespace, pvcName, podClient)
 	if err != nil {
 		return false, errors.WithStack(err)
 	}
 
 	for _, p := range pods {
-		resticVols := restic.GetPodVolumesUsingRestic(&p, defaultVolumesToRestic)
-		if len(resticVols) > 0 {
+		vols := podvolume.GetVolumesByPod(&p, defaultVolumesToFsBackup)
+		if len(vols) > 0 {
 			volName, err := GetPodVolumeNameForPVC(p, pvcName)
 			if err != nil {
 				return false, err
 			}
-			if Contains(resticVols, volName) {
+			if Contains(vols, volName) {
 				return true, nil
 			}
 		}
