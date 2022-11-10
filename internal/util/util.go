@@ -175,6 +175,9 @@ func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1api.VolumeSnap
 		// bound to the existing snapshot.
 		if snapshotContent.Status == nil || snapshotContent.Status.SnapshotHandle == nil {
 			log.Infof("Waiting for volumesnapshotcontents %s to have snapshot handle. Retrying in %ds", snapshotContent.Name, interval/time.Second)
+			if snapshotContent.Status != nil && snapshotContent.Status.Error != nil {
+				log.Warnf("Volumesnapshotcontent %s has error: %v", snapshotContent.Name, snapshotContent.Status.Error.Message)
+			}
 			return false, nil
 		}
 
@@ -183,7 +186,11 @@ func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1api.VolumeSnap
 
 	if err != nil {
 		if err == wait.ErrWaitTimeout {
-			log.Errorf("Timed out awaiting reconciliation of volumesnapshot %s/%s", volSnap.Namespace, volSnap.Name)
+			if snapshotContent.Status != nil && snapshotContent.Status.Error != nil {
+				log.Errorf("Timed out awaiting reconciliation of volumesnapshot, Volumesnapshotcontent %s has error: %v", snapshotContent.Name, snapshotContent.Status.Error.Message)
+			} else {
+				log.Errorf("Timed out awaiting reconciliation of volumesnapshot %s/%s", volSnap.Namespace, volSnap.Name)
+			}
 		}
 		return nil, err
 	}
