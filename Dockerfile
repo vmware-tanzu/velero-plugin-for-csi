@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-FROM busybox:1.33.1 AS busybox
+FROM busybox:1.34.1 AS busybox
 
 FROM scratch
 ADD velero-plugin-for-csi /plugins/
