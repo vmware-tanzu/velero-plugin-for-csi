@@ -19,10 +19,10 @@ durable snapshot storage you may want to consider
 [Velero's Restic Integration](https://velero.io/docs/latest/restic)
 
 ## Verified environment
-Velero CSI plugin v0.3 is tested with Velero v1.9 on the following environments:
+Velero CSI plugin v0.4 is tested with Velero v1.10 on the following environments:
 * EKS: ebs.csi.aws.com driver is tested with helm chart version helm-chart-aws-ebs-csi-driver-2.6.8 and external-snapshotter version is v5.0.1. v6.0.1 external-snapshotter is also tested with EBS CSI driver helm chart version helm-chart-aws-ebs-csi-driver-2.6.10.
 * AKS: disk.csi.azure.com driver is tested. CSI related controllers are installed in control plane, so cannot find the exactly version. Tested AKS versions are 1.23.3 and v1.22.6.
-* GKE: pd.csi.storage.gke.io driver is tested. CSI related controllers are installed in control plane, so cannot find the exactly version. Tested GKE versions are 1.23.5-gke.1501 and 1.22.8-gke.201.
+* GKE: pd.csi.storage.gke.io driver is tested. CSI related controllers are installed in control plane, so cannot find the exactly version. Tested GKE versions are 1.23.8-gke.1900 and 1.25.1-gke.500.
 
 ## Compatibility
 
@@ -30,6 +30,7 @@ Below is a listing of plugin versions and respective Velero versions that are co
 
 | Plugin Version  | Velero Version |
 |-----------------|----------------|
+| v0.4.x          | v1.10.x        |
 | v0.3.0          | v1.9.x         |
 | v0.2.0          | v1.7.x, v1.8.x |
 | v0.1.2          | v1.5.x, v1.6.x |
