@@ -16,7 +16,7 @@ CSI snapshots on AWS EBS, Azure managed disks and Google Cloud Persistent Disk a
 
 For all other storage systems, please check with your storage vendor.  If your storage vendor doesn't support 
 durable snapshot storage you may want to consider 
-[Velero's Restic Integration](https://velero.io/docs/latest/restic)
+[File System Backup](https://velero.io/docs/latest/file-system-backup/)
 
 ## Verified environment
 Velero CSI plugin v0.4 is tested with Velero v1.10 on the following environments:
