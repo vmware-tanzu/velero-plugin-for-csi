@@ -15,7 +15,7 @@
 # The binary to build (just the basename).
 BIN ?= velero-plugin-for-csi
 
-BUILD_IMAGE ?= golang:1.18.8-buster
+BUILD_IMAGE ?= golang:1.18.8-bullseye
 
 REGISTRY ?= velero
 IMAGE_NAME ?= $(REGISTRY)/velero-plugin-for-csi
