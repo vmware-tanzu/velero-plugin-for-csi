@@ -32,6 +32,7 @@ import (
 
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
+	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
 
 const (
@@ -103,6 +104,10 @@ func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInp
 		return nil, errors.WithStack(err)
 	}
 	p.Log.Infof("Starting PVCRestoreItemAction for PVC %s/%s", pvc.Namespace, pvc.Name)
+	if boolptr.IsSetToFalse(input.Restore.Spec.RestorePVs) {
+		p.Log.Infof("Restore did not request for PVs to be restored %s/%s", input.Restore.Namespace, input.Restore.Name)
+		return &velero.RestoreItemActionExecuteOutput{SkipRestore: true}, nil
+	}
 
 	removePVCAnnotations(&pvc,
 		[]string{AnnBindCompleted, AnnBoundByController, AnnStorageProvisioner, AnnBetaStorageProvisioner, AnnSelectedNode})

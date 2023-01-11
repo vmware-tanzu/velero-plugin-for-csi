@@ -32,6 +32,7 @@ import (
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
+	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
 
 // VolumeSnapshotRestoreItemAction is a Velero restore item action plugin for VolumeSnapshots
@@ -62,6 +63,10 @@ func resetVolumeSnapshotAnnotation(vs *snapshotv1api.VolumeSnapshot) {
 // to recreate a volumesnapshotcontent object and statically bind the Volumesnapshot object being restored.
 func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
 	p.Log.Info("Starting VolumeSnapshotRestoreItemAction")
+	if boolptr.IsSetToFalse(input.Restore.Spec.RestorePVs) {
+		p.Log.Infof("Restore did not request for PVs to be restored %s/%s", input.Restore.Namespace, input.Restore.Name)
+		return &velero.RestoreItemActionExecuteOutput{SkipRestore: true}, nil
+	}
 	var vs snapshotv1api.VolumeSnapshot
 
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &vs); err != nil {
