@@ -26,6 +26,7 @@ import (
 
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
+	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
 
 // VolumeSnapshotClassRestoreItemAction is a Velero restore item action plugin for VolumeSnapshotClass
@@ -44,7 +45,10 @@ func (p *VolumeSnapshotClassRestoreItemAction) AppliesTo() (velero.ResourceSelec
 // Execute restores volumesnapshotclass objects returning any snapshotlister secret as additional items to restore
 func (p *VolumeSnapshotClassRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
 	p.Log.Info("Starting VolumeSnapshotClassRestoreItemAction")
-
+	if boolptr.IsSetToFalse(input.Restore.Spec.RestorePVs) {
+		p.Log.Infof("Restore did not request for PVs to be restored %s/%s", input.Restore.Namespace, input.Restore.Name)
+		return &velero.RestoreItemActionExecuteOutput{SkipRestore: true}, nil
+	}
 	var snapClass snapshotv1api.VolumeSnapshotClass
 
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &snapClass); err != nil {
