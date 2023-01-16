@@ -1,5 +1,6 @@
 ### All Changes
 
+- Fix CVEs reported by trivy scanner. (#140, @blackpiglet)
 - Pin Golang and Busybox docker image to sha256 tag, and update referenced Velero tag. (#138, @blackpiglet)
 - Bump up busybox version to v1.34.1 for main. (#133, @blackpiglet)
 - Remove Restic reference in CSI plugin. (#124, @blackpiglet)
