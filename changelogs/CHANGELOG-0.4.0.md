@@ -1,5 +1,6 @@
 ### All Changes
 
+- Update golang.org/x/net version to address CVE-2022-41721. (#144, @blackpiglet)
 - Fix CVEs reported by trivy scanner. (#140, @blackpiglet)
 - Pin Golang and Busybox docker image to sha256 tag, and update referenced Velero tag. (#138, @blackpiglet)
 - Bump up busybox version to v1.34.1 for main. (#133, @blackpiglet)
