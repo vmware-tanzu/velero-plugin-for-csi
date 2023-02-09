@@ -15,7 +15,7 @@
 # The binary to build (just the basename).
 BIN ?= velero-plugin-for-csi
 
-BUILD_IMAGE ?= golang:1.18-buster
+BUILD_IMAGE ?= golang:1.18-bullseye
 
 REGISTRY ?= velero
 IMAGE_NAME ?= $(REGISTRY)/velero-plugin-for-csi
@@ -32,6 +32,7 @@ ARCH ?= linux-amd64
 platform_temp = $(subst -, ,$(ARCH))
 GOOS = $(word 1, $(platform_temp))
 GOARCH = $(word 2, $(platform_temp))
+GOPROXY ?= https://proxy.golang.org
 
 .PHONY: all
 all: $(addprefix build-, $(BIN))
@@ -43,6 +44,7 @@ build-%:
 local: build-dirs
 	GOOS=$(GOOS) \
 	GOARCH=$(GOARCH) \
+	GOPROXY=$(GOPROXY) \
 	BIN=$(BIN) \
 	OUTPUT_DIR=$$(pwd)/_output/bin/$(GOOS)/$(GOARCH) \
 	./hack/build.sh
@@ -54,6 +56,7 @@ _output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs
 	$(MAKE) shell CMD="-c '\
 		GOOS=$(GOOS) \
 		GOARCH=$(GOARCH) \
+		GOPROXY=$(GOPROXY) \
 		BIN=$(BIN) \
 		OUTPUT_DIR=/output/$(GOOS)/$(GOARCH) \
 		./hack/build.sh'"
