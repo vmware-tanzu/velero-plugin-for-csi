@@ -104,6 +104,12 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error getting storage class")
 	}
+
+	if _, ok := storageClass.Labels[util.IgnoreVolumeSnapshotLabel]; ok {
+		p.Log.Infof("Skipping PVC %s/%s, associated storage class %s has the ignore label set", pvc.Namespace, pvc.Name, storageClass.Name)
+		return item, nil, nil
+	}
+
 	p.Log.Debugf("Fetching volumesnapshot class for %s", storageClass.Provisioner)
 	snapshotClass, err := util.GetVolumeSnapshotClassForStorageClass(storageClass.Provisioner, snapshotClient.SnapshotV1())
 	if err != nil {
