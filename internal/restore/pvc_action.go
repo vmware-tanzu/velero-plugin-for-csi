@@ -104,10 +104,6 @@ func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInp
 		return nil, errors.WithStack(err)
 	}
 	p.Log.Infof("Starting PVCRestoreItemAction for PVC %s/%s", pvc.Namespace, pvc.Name)
-	if boolptr.IsSetToFalse(input.Restore.Spec.RestorePVs) {
-		p.Log.Infof("Restore did not request for PVs to be restored %s/%s", input.Restore.Namespace, input.Restore.Name)
-		return &velero.RestoreItemActionExecuteOutput{SkipRestore: true}, nil
-	}
 
 	removePVCAnnotations(&pvc,
 		[]string{AnnBindCompleted, AnnBoundByController, AnnStorageProvisioner, AnnBetaStorageProvisioner, AnnSelectedNode})
@@ -126,32 +122,39 @@ func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInp
 		}, nil
 	}
 
-	_, snapClient, err := util.GetClients()
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	vs, err := snapClient.SnapshotV1().VolumeSnapshots(pvc.Namespace).Get(context.TODO(), volumeSnapshotName, metav1.GetOptions{})
-	if err != nil {
-		return nil, errors.Wrapf(err, fmt.Sprintf("Failed to get Volumesnapshot %s/%s to restore PVC %s/%s", pvc.Namespace, volumeSnapshotName, pvc.Namespace, pvc.Name))
-	}
-
-	if _, exists := vs.Annotations[util.VolumeSnapshotRestoreSize]; exists {
-		restoreSize, err := resource.ParseQuantity(vs.Annotations[util.VolumeSnapshotRestoreSize])
+	if boolptr.IsSetToFalse(input.Restore.Spec.RestorePVs) {
+		p.Log.Infof("Restore did not request for PVs to be restored from snapshot %s/%s.", input.Restore.Namespace, input.Restore.Name)
+		pvc.Spec.VolumeName = ""
+		pvc.Spec.DataSource = &corev1api.TypedLocalObjectReference{}
+		pvc.Spec.DataSourceRef = &corev1api.TypedLocalObjectReference{}
+	} else {
+		_, snapClient, err := util.GetClients()
 		if err != nil {
-			return nil, errors.Wrapf(err, fmt.Sprintf("Failed to parse %s from annotation on Volumesnapshot %s/%s into restore size",
-				vs.Annotations[util.VolumeSnapshotRestoreSize], vs.Namespace, vs.Name))
+			return nil, errors.WithStack(err)
 		}
-		// It is possible that the volume provider allocated a larger capacity volume than what was requested in the backed up PVC.
-		// In this scenario the volumesnapshot of the PVC will endup being larger than its requested storage size.
-		// Such a PVC, on restore as-is, will be stuck attempting to use a Volumesnapshot as a data source for a PVC that
-		// is not large enough.
-		// To counter that, here we set the storage request on the PVC to the larger of the PVC's storage request and the size of the
-		// VolumeSnapshot
-		setPVCStorageResourceRequest(&pvc, restoreSize, p.Log)
-	}
 
-	resetPVCSpec(&pvc, volumeSnapshotName)
+		vs, err := snapClient.SnapshotV1().VolumeSnapshots(pvc.Namespace).Get(context.TODO(), volumeSnapshotName, metav1.GetOptions{})
+		if err != nil {
+			return nil, errors.Wrapf(err, fmt.Sprintf("Failed to get Volumesnapshot %s/%s to restore PVC %s/%s", pvc.Namespace, volumeSnapshotName, pvc.Namespace, pvc.Name))
+		}
+
+		if _, exists := vs.Annotations[util.VolumeSnapshotRestoreSize]; exists {
+			restoreSize, err := resource.ParseQuantity(vs.Annotations[util.VolumeSnapshotRestoreSize])
+			if err != nil {
+				return nil, errors.Wrapf(err, fmt.Sprintf("Failed to parse %s from annotation on Volumesnapshot %s/%s into restore size",
+					vs.Annotations[util.VolumeSnapshotRestoreSize], vs.Namespace, vs.Name))
+			}
+			// It is possible that the volume provider allocated a larger capacity volume than what was requested in the backed up PVC.
+			// In this scenario the volumesnapshot of the PVC will endup being larger than its requested storage size.
+			// Such a PVC, on restore as-is, will be stuck attempting to use a Volumesnapshot as a data source for a PVC that
+			// is not large enough.
+			// To counter that, here we set the storage request on the PVC to the larger of the PVC's storage request and the size of the
+			// VolumeSnapshot
+			setPVCStorageResourceRequest(&pvc, restoreSize, p.Log)
+		}
+
+		resetPVCSpec(&pvc, volumeSnapshotName)
+	}
 
 	pvcMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&pvc)
 	if err != nil {
