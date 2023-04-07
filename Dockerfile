@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-FROM busybox:1.36.0-uclibc AS busybox
+FROM busybox@sha256:91540637a8c1bd8374832a77bb11ec286c9599ff8b528d69794f5dea6e257fd9 AS busybox
 
 FROM scratch
 ADD velero-plugin-for-csi /plugins/
