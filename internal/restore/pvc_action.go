@@ -125,8 +125,8 @@ func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInp
 	if boolptr.IsSetToFalse(input.Restore.Spec.RestorePVs) {
 		p.Log.Infof("Restore did not request for PVs to be restored from snapshot %s/%s.", input.Restore.Namespace, input.Restore.Name)
 		pvc.Spec.VolumeName = ""
-		pvc.Spec.DataSource = &corev1api.TypedLocalObjectReference{}
-		pvc.Spec.DataSourceRef = &corev1api.TypedLocalObjectReference{}
+		pvc.Spec.DataSource = nil
+		pvc.Spec.DataSourceRef = nil
 	} else {
 		_, snapClient, err := util.GetClients()
 		if err != nil {
