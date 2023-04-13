@@ -1,5 +1,6 @@
 ### All Changes
 
+* Replace busybox with internal copy binary. (#162, @blackpiglet)
 * When restorePVs is false, CSI should restore the PVC. (#154, @blackpiglet)
 * Bump the Golang version to v1.19 for the GCP plugin's main branch. (#153, @blackpiglet)
 * Update golang.org/x/net to fix CVE. (#149, @blackpiglet)
