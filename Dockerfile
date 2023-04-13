@@ -11,10 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-FROM busybox@sha256:fcd85228d7a25feb59f101ac3a955d27c80df4ad824d65f5757a954831450185 AS busybox
-
 FROM scratch
+ADD cp-plugin /bin/cp-plugin
 ADD velero-plugin-for-csi /plugins/
-COPY --from=busybox /bin/cp /bin/cp
 USER 65532:65532
-ENTRYPOINT ["cp", "/plugins/velero-plugin-for-csi", "/target/."]
+ENTRYPOINT ["/bin/cp-plugin", "/plugins/velero-plugin-for-csi", "/target/velero-plugin-for-csi"]
