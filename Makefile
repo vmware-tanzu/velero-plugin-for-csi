@@ -89,26 +89,14 @@ local: build-dirs
 	OUTPUT_DIR=$$(pwd)/_output/bin/$(GOOS)/$(GOARCH) \
 	./hack/build.sh
 
-TTY := $(shell tty -s && echo "-t")
+# test runs unit tests using 'go test' in the local environment.
+.PHONY: test
+test:
+	CGO_ENABLED=0 go test -v -coverprofile=coverage.out -timeout 60s ./...
 
-shell: build-dirs 
-	@echo "running docker: $@"
-	@docker run \
-		-e GOFLAGS \
-		-i $(TTY) \
-		--rm \
-		-u $$(id -u):$$(id -g) \
-		-v "$$(pwd)/_output/bin:/output:delegated" \
-		-v $$(pwd)/.go/pkg:/go/pkg \
-		-v $$(pwd)/.go/src:/go/src \
-		-v $$(pwd)/.go/std:/go/std \
-		-v $$(pwd):/go/src/velero-plugin-for-csi \
-		-v $$(pwd)/.go/std/$(GOOS)_$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static \
-		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
-		-e CGO_ENABLED=0 \
-		-w /go/src/velero-plugin-for-csi \
-		$(BUILD_IMAGE) \
-		/bin/sh $(CMD)
+.PHONY: ci
+ci: verify-modules test
+
 
 .PHONY: container
 container:
@@ -128,14 +116,6 @@ endif
 	--build-arg=REGISTRY=$(REGISTRY) \
 	-f $(VELERO_DOCKERFILE) .
 	@echo "container: $(IMAGE):$(VERSION)"
-
-# test runs unit tests using 'go test' in the local environment.
-.PHONY: test
-test:
-	CGO_ENABLED=0 go test -v -coverprofile=coverage.out -timeout 60s ./...
-
-.PHONY: ci
-ci: verify-modules test
 
 build-dirs:
 	@mkdir -p _output/bin/$(GOOS)/$(GOARCH)

@@ -26,10 +26,11 @@ ENV GOOS=${TARGETOS} \
 COPY . /go/src/velero-plugin-for-csi
 WORKDIR /go/src/velero-plugin-for-csi
 RUN export GOARM=$( echo "${GOARM}" | cut -c2-) && \
-    CGO_ENABLED=0 go build -v -o /go/bin/velero-plugin-for-csi ./velero-plugin-for-csi
+    CGO_ENABLED=0 go build -v -o /go/bin/velero-plugin-for-csi ./velero-plugin-for-csi && \
+    CGO_ENABLED=0 go build -v -o /go/bin/cp-plugin ./hack/cp-plugin
 
 FROM scratch
-ADD velero-plugin-for-csi /plugins/
-COPY --from=busybox /bin/cp /bin/cp
+COPY --from=build velero-plugin-for-csi /plugins/
+COPY --from=build cp-plugin /bin/cp-plugin
 USER 65532:65532
-ENTRYPOINT ["cp", "/plugins/velero-plugin-for-csi", "/target/."]
+ENTRYPOINT ["/bin/cp-plugin", "/plugins/velero-plugin-for-csi", "/target/velero-plugin-for-csi"]

@@ -36,6 +36,7 @@ export CGO_ENABLED=0
 if [[ -z "${OUTPUT_DIR:-}" ]]; then
   OUTPUT_DIR=.
 fi
+
 OUTPUT=${OUTPUT_DIR}/${BIN}
 if [[ "${GOOS}" = "windows" ]]; then
   OUTPUT="${OUTPUT}.exe"
