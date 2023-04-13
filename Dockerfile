@@ -33,4 +33,4 @@ FROM scratch
 COPY --from=build velero-plugin-for-csi /plugins/
 COPY --from=build cp-plugin /bin/cp-plugin
 USER 65532:65532
-ENTRYPOINT ["cp-plugin", "/plugins/velero-plugin-for-csi", "/target/velero-plugin-for-csi"]
+ENTRYPOINT ["/bin/cp-plugin", "/plugins/velero-plugin-for-csi", "/target/velero-plugin-for-csi"]
