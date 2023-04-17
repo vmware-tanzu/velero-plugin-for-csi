@@ -11,10 +11,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-FROM busybox:1.36.0-uclibc AS busybox
+FROM --platform=$BUILDPLATFORM golang:1.20-bullseye AS build
+
+ARG TARGETOS
+ARG TARGETARCH
+ARG TARGETVARIANT
+ARG GOPROXY
+
+ENV GOOS=${TARGETOS} \
+    GOARCH=${TARGETARCH} \
+    GOARM=${TARGETVARIANT} \
+    GOPROXY=${GOPROXY}
+
+COPY . /go/src/velero-plugin-for-csi
+WORKDIR /go/src/velero-plugin-for-csi
+RUN export GOARM=$( echo "${GOARM}" | cut -c2-) && \
+    CGO_ENABLED=0 go build -v -o /go/bin/velero-plugin-for-csi . && \
+    CGO_ENABLED=0 go build -v -o /go/bin/cp-plugin ./hack/cp-plugin
 
 FROM scratch
-ADD velero-plugin-for-csi /plugins/
-COPY --from=busybox /bin/cp /bin/cp
+COPY --from=build velero-plugin-for-csi /plugins/
+COPY --from=build cp-plugin /bin/cp-plugin
 USER 65532:65532
-ENTRYPOINT ["cp", "/plugins/velero-plugin-for-csi", "/target/."]
+ENTRYPOINT ["cp-plugin", "/plugins/velero-plugin-for-csi", "/target/velero-plugin-for-csi"]

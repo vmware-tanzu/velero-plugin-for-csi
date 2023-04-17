@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+# http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,13 +15,18 @@
 # The binary to build (just the basename).
 BIN ?= velero-plugin-for-csi
 
-BUILD_IMAGE ?= golang:1.19-bullseye
+# This repo's root import path (under GOPATH).
+PKG := github.com/vmware-tanzu/$(BIN)
 
+# Where to push the docker image.
 REGISTRY ?= velero
-IMAGE_NAME ?= $(REGISTRY)/velero-plugin-for-csi
-TAG ?= dev
 
-IMAGE ?= $(IMAGE_NAME):$(TAG)
+# Image name
+IMAGE?= $(REGISTRY)/$(BIN)
+
+# We allow the Dockerfile to be configurable to enable the use of custom Dockerfiles
+# that pull base images from different registries.
+VELERO_DOCKERFILE ?= Dockerfile
 
 # Which architecture to build - see $(ALL_ARCH) for options.
 # if the 'local' rule is being run, detect the ARCH from 'go env'
@@ -29,78 +34,91 @@ IMAGE ?= $(IMAGE_NAME):$(TAG)
 local : ARCH ?= $(shell go env GOOS)-$(shell go env GOARCH)
 ARCH ?= linux-amd64
 
+VERSION ?= main
+
+TAG_LATEST ?= false
+
+ifeq ($(TAG_LATEST), true)
+	IMAGE_TAGS ?= $(IMAGE):$(VERSION) $(IMAGE):latest
+else
+	IMAGE_TAGS ?= $(IMAGE):$(VERSION)
+endif
+
+ifeq ($(shell docker buildx inspect 2>/dev/null | awk '/Status/ { print $$2 }'), running)
+	BUILDX_ENABLED ?= true
+else
+	BUILDX_ENABLED ?= false
+endif
+
+define BUILDX_ERROR
+buildx not enabled, refusing to run this recipe
+see: https://velero.io/docs/main/build-from-source/#making-images-and-updating-velero for more info
+endef
+
+CLI_PLATFORMS ?= linux-amd64 linux-arm linux-arm64 darwin-amd64 darwin-arm64 windows-amd64 linux-ppc64le
+BUILDX_PLATFORMS ?= $(subst -,/,$(ARCH))
+BUILDX_OUTPUT_TYPE ?= docker
+
+# set git sha and tree state
+GIT_SHA = $(shell git rev-parse HEAD)
+ifneq ($(shell git status --porcelain 2> /dev/null),)
+	GIT_TREE_STATE ?= dirty
+else
+	GIT_TREE_STATE ?= clean
+endif
+
+###
+### These variables should not need tweaking.
+###
+
 platform_temp = $(subst -, ,$(ARCH))
 GOOS = $(word 1, $(platform_temp))
 GOARCH = $(word 2, $(platform_temp))
 GOPROXY ?= https://proxy.golang.org
 
-.PHONY: all
-all: $(addprefix build-, $(BIN))
-
-build-%:
-	$(MAKE) --no-print-directory BIN=$* build
-
 .PHONY: local
 local: build-dirs
 	GOOS=$(GOOS) \
 	GOARCH=$(GOARCH) \
-	GOPROXY=$(GOPROXY) \
+	VERSION=$(VERSION) \
+	REGISTRY=$(REGISTRY) \
+	PKG=$(PKG) \
 	BIN=$(BIN) \
+	GIT_SHA=$(GIT_SHA) \
+	GIT_TREE_STATE=$(GIT_TREE_STATE) \
 	OUTPUT_DIR=$$(pwd)/_output/bin/$(GOOS)/$(GOARCH) \
 	./hack/build.sh
 
-build: _output/bin/$(GOOS)/$(GOARCH)/$(BIN)
+.PHONY: container
+container:
+ifneq ($(BUILDX_ENABLED), true)
+	$(error $(BUILDX_ERROR))
+endif
+	@docker buildx build --pull \
+	--output=type=$(BUILDX_OUTPUT_TYPE) \
+	--platform $(BUILDX_PLATFORMS) \
+	$(addprefix -t , $(IMAGE_TAGS)) \
+	--build-arg=GOPROXY=$(GOPROXY) \
+	--build-arg=PKG=$(PKG) \
+	--build-arg=BIN=$(BIN) \
+	--build-arg=VERSION=$(VERSION) \
+	--build-arg=GIT_SHA=$(GIT_SHA) \
+	--build-arg=GIT_TREE_STATE=$(GIT_TREE_STATE) \
+	--build-arg=REGISTRY=$(REGISTRY) \
+	-f $(VELERO_DOCKERFILE) .
+	@echo "container: $(IMAGE):$(VERSION)"
 
-_output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs
-	@echo "building: $@"
-	$(MAKE) shell CMD="-c '\
-		GOOS=$(GOOS) \
-		GOARCH=$(GOARCH) \
-		GOPROXY=$(GOPROXY) \
-		BIN=$(BIN) \
-		OUTPUT_DIR=/output/$(GOOS)/$(GOARCH) \
-		./hack/build.sh'"
+# test runs unit tests using 'go test' in the local environment.
+.PHONY: test
+test:
+	CGO_ENABLED=0 go test -v -coverprofile=coverage.out -timeout 60s ./...
 
-TTY := $(shell tty -s && echo "-t")
-
-shell: build-dirs 
-	@echo "running docker: $@"
-	@docker run \
-		-e GOFLAGS \
-		-i $(TTY) \
-		--rm \
-		-u $$(id -u):$$(id -g) \
-		-v "$$(pwd)/_output/bin:/output:delegated" \
-		-v $$(pwd)/.go/pkg:/go/pkg \
-		-v $$(pwd)/.go/src:/go/src \
-		-v $$(pwd)/.go/std:/go/std \
-		-v $$(pwd):/go/src/velero-plugin-for-csi \
-		-v $$(pwd)/.go/std/$(GOOS)_$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static \
-		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
-		-e CGO_ENABLED=0 \
-		-w /go/src/velero-plugin-for-csi \
-		$(BUILD_IMAGE) \
-		/bin/sh $(CMD)
+.PHONY: ci
+ci: verify-modules test
 
 build-dirs:
 	@mkdir -p _output/bin/$(GOOS)/$(GOARCH)
 	@mkdir -p .go/src/$(PKG) .go/pkg .go/bin .go/std/$(GOOS)/$(GOARCH) .go/go-build
-
-.PHONY: container
-container: all build-dirs
-	cp Dockerfile _output/bin/$(GOOS)/$(GOARCH)/Dockerfile
-	docker build -t $(IMAGE) -f _output/bin/$(GOOS)/$(GOARCH)/Dockerfile _output/bin/$(GOOS)/$(GOARCH)
-
-.PHONY: push
-push: container
-ifeq ($(TAG_LATEST), true)
-	docker tag $(IMAGE_NAME):$(TAG) $(IMAGE_NAME):latest
-	docker push $(IMAGE_NAME):latest
-endif
-	docker push $(IMAGE)
-
-.PHONY: all-ci
-all-ci: $(addprefix ci-, $(BIN))
 
 .PHONY: modules
 modules:
@@ -111,17 +129,6 @@ verify-modules: modules
 	@if !(git diff --quiet HEAD -- go.sum go.mod); then \
 		echo "go module files are out of date, please commit the changes to go.mod and go.sum"; exit 1; \
 	fi
-
-ci-%:
-	$(MAKE) --no-print-directory BIN=$* ci
-
-.PHONY: test
-test: build-dirs
-	@$(MAKE) shell  CMD="-c 'go test -timeout 30s -v -cover ./...'"
-
-.PHONY: ci
-ci: verify-modules all test
-	IMAGE=velero-plugin-for-csi:pr-verify $(MAKE) container
 
 changelog:
 	hack/release-tools/changelog.sh
