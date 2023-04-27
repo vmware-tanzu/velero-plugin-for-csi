@@ -11,8 +11,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+FROM --platform=$BUILDPLATFORM golang:1.20-bullseye AS build
+
+ARG TARGETOS
+ARG TARGETARCH
+ARG TARGETVARIANT
+ARG GOPROXY
+
+ENV GOOS=${TARGETOS} \
+    GOARCH=${TARGETARCH} \
+    GOARM=${TARGETVARIANT} \
+    GOPROXY=${GOPROXY}
+
+COPY . /go/src/velero-plugin-for-csi
+WORKDIR /go/src/velero-plugin-for-csi
+RUN export GOARM=$( echo "${GOARM}" | cut -c2-) && \
+    CGO_ENABLED=0 go build -v -o /go/bin/velero-plugin-for-csi . && \
+    CGO_ENABLED=0 go build -v -o /go/bin/cp-plugin ./hack/cp-plugin
+
 FROM scratch
-ADD cp-plugin /bin/cp-plugin
-ADD velero-plugin-for-csi /plugins/
+COPY --from=build /go/bin/velero-plugin-for-csi /plugins/
+COPY --from=build /go/bin/cp-plugin /bin/cp-plugin
 USER 65532:65532
 ENTRYPOINT ["/bin/cp-plugin", "/plugins/velero-plugin-for-csi", "/target/velero-plugin-for-csi"]

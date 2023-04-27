@@ -76,13 +76,25 @@ else
     fi
 fi
 
+if [[ -z "$BUILDX_PLATFORMS" ]]; then
+    BUILDX_PLATFORMS="linux/amd64,linux/arm64,linux/arm/v7"
+fi
+
 # Debugging info
 echo "Highest tag found: $HIGHEST"
 echo "BRANCH: $BRANCH"
 echo "TAG: $TAG"
 echo "TAG_LATEST: $TAG_LATEST"
 echo "VERSION: $VERSION"
+echo "BUILDX_PLATFORMS: $BUILDX_PLATFORMS"
 
 echo "Building and pushing container images."
 
-TAG="$VERSION" TAG_LATEST="$TAG_LATEST" make push
+# The use of "registry" as the buildx output type below instructs
+# Docker to push the image
+
+VERSION="$VERSION" \
+TAG_LATEST="$TAG_LATEST" \
+BUILDX_PLATFORMS="$BUILDX_PLATFORMS" \
+BUILDX_OUTPUT_TYPE="registry" \
+make container
