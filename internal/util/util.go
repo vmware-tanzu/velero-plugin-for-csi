@@ -127,10 +127,18 @@ func GetVolumeSnapshotClassForStorageClass(provisioner string, snapshotClient sn
 	// https://github.com/kubernetes-csi/external-snapshotter/blob/release-4.2/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml
 	for _, sc := range snapshotClasses.Items {
 		_, hasLabelSelector := sc.Labels[VolumeSnapshotClassSelectorLabel]
-		if sc.Driver == provisioner && hasLabelSelector {
-			return &sc, nil
+		if hasLabelSelector {
+			if sc.Driver == provisioner {
+				return &sc, nil
+			} else { // check snapshotclass provisioner annotation exists
+				annotationValue, hasAnnotationsSelector := GetAnnotation(&sc.ObjectMeta, VolumeSnapshotClassProvisionerAnnotation)
+				if hasAnnotationsSelector && annotationValue == provisioner {
+					return &sc, nil
+				}
+			}
 		}
 	}
+
 	return nil, errors.Errorf("failed to get volumesnapshotclass for provisioner %s, ensure that the desired volumesnapshot class has the %s label", provisioner, VolumeSnapshotClassSelectorLabel)
 }
 
@@ -244,6 +252,15 @@ func IsVolumeSnapshotHasVSCDeleteSecret(vs *snapshotv1api.VolumeSnapshot) bool {
 	_, nameExists := vs.Annotations[CSIDeleteSnapshotSecretName]
 	_, nsExists := vs.Annotations[CSIDeleteSnapshotSecretNamespace]
 	return nameExists && nsExists
+}
+
+// GetAnnotation get the annotations on the object
+func GetAnnotation(o *metav1.ObjectMeta, key string) (string, bool) {
+	if o.Annotations == nil {
+		return "", false
+	}
+	v, exist := o.Annotations[key]
+	return v, exist
 }
 
 // AddAnnotations adds the supplied key-values to the annotations on the object

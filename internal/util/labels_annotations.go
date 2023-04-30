@@ -26,6 +26,10 @@ const (
 	CSIVSCDeletionPolicy             = "velero.io/csi-vsc-deletion-policy"
 	VolumeSnapshotClassSelectorLabel = "velero.io/csi-volumesnapshot-class"
 
+	// For some csi providers, the provisioner name of storageclass is no the same as driver name in snapshotclass
+	// We provide this annotation in snapshotclass to let velero detect the different name
+	VolumeSnapshotClassProvisionerAnnotation = "velero.io/csi-volumesnapshot-class-provisioner"
+
 	// There is no release w/ these constants exported. Using the strings for now.
 	// CSI Labels volumesnapshotclass
 	// https://github.com/kubernetes-csi/external-snapshotter/blob/master/pkg/utils/util.go#L59-L60
