@@ -176,7 +176,7 @@ func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1api.VolumeSnap
 		if snapshotContent.Status == nil || snapshotContent.Status.SnapshotHandle == nil {
 			log.Infof("Waiting for volumesnapshotcontents %s to have snapshot handle. Retrying in %ds", snapshotContent.Name, interval/time.Second)
 			if snapshotContent.Status != nil && snapshotContent.Status.Error != nil {
-				log.Warnf("Volumesnapshotcontent %s has error: %v", snapshotContent.Name, snapshotContent.Status.Error.Message)
+				log.Warnf("Volumesnapshotcontent %s has error: %v", snapshotContent.Name, *snapshotContent.Status.Error.Message)
 			}
 			return false, nil
 		}
@@ -291,4 +291,28 @@ func HasBackupLabel(o *metav1.ObjectMeta, backupName string) bool {
 		return false
 	}
 	return o.Labels[velerov1api.BackupNameLabel] == label.GetValidName(backupName)
+}
+
+func CleanupVolumeSnapshot(volSnap *snapshotv1api.VolumeSnapshot, snapshotClient snapshotter.SnapshotV1Interface, log logrus.FieldLogger) {
+	log.Infof("Deleting Volumesnapshot %s/%s", volSnap.Namespace, volSnap.Name)
+	vs, err := snapshotClient.VolumeSnapshots(volSnap.Namespace).Get(context.TODO(), volSnap.Name, metav1.GetOptions{})
+	if err != nil {
+		log.Debugf("Failed to get volumesnapshot %s/%s", volSnap.Namespace, volSnap.Name)
+		return
+	}
+
+	if vs.Status != nil && vs.Status.BoundVolumeSnapshotContentName != nil {
+		// we patch the DeletionPolicy of the volumesnapshotcontent to set it to Delete.
+		// This ensures that the volume snapshot in the storage provider is also deleted.
+		err := SetVolumeSnapshotContentDeletionPolicy(*vs.Status.BoundVolumeSnapshotContentName, snapshotClient)
+		if err != nil {
+			log.Debugf("Failed to patch DeletionPolicy of volume snapshot %s/%s", vs.Namespace, vs.Name)
+		}
+	}
+	err = snapshotClient.VolumeSnapshots(vs.Namespace).Delete(context.TODO(), vs.Name, metav1.DeleteOptions{})
+	if err != nil {
+		log.Debugf("Failed to delete volumesnapshot %s/%s: %v", vs.Namespace, vs.Name, err)
+	} else {
+		log.Info("Deleted volumesnapshot with volumesnapshotContent %s/%s", vs.Namespace, vs.Name)
+	}
 }
