@@ -659,7 +659,21 @@ func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
 		Driver: "baz.csi.k8s.io",
 	}
 
-	objs := []runtime.Object{hostpathClass, fooClass, barClass, bazClass}
+	ambClass1 := &snapshotv1api.VolumeSnapshotClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "amb1",
+		},
+		Driver: "amb.csi.k8s.io",
+	}
+
+	ambClass2 := &snapshotv1api.VolumeSnapshotClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "amb2",
+		},
+		Driver: "amb.csi.k8s.io",
+	}
+
+	objs := []runtime.Object{hostpathClass, fooClass, barClass, bazClass, ambClass1, ambClass2}
 	fakeClient := snapshotFake.NewSimpleClientset(objs...)
 
 	testCases := []struct {
@@ -681,15 +695,21 @@ func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "should find var volumesnapshotclass",
+			name:        "should find bar volumesnapshotclass",
 			driverName:  "bar.csi.k8s.io",
 			expectedVSC: barClass,
 			expectError: false,
 		},
 		{
-			name:        "should not find foo volumesnapshotclass without \"velero.io/csi-volumesnapshot-class\" label",
+			name:        "should find baz volumesnapshotclass without \"velero.io/csi-volumesnapshot-class\" label, b/c there's only one vsclass matching the driver name",
 			driverName:  "baz.csi.k8s.io",
 			expectedVSC: bazClass,
+			expectError: false,
+		},
+		{
+			name:        "should not find amb volumesnapshotclass without \"velero.io/csi-volumesnapshot-class\" label, b/c there're  more than one vsclass matching the driver name",
+			driverName:  "amb.csi.k8s.io",
+			expectedVSC: nil,
 			expectError: true,
 		},
 		{
@@ -710,8 +730,8 @@ func TestGetVolumeSnapshotCalssForStorageClass(t *testing.T) {
 				return
 			}
 
-			assert.Equalf(t, tc.expectedVSC.Name, actualVSC.Name, "unexpected volumesnapshotclass name returned. Want: %s; Got:%s", tc.name, tc.expectedVSC.Name, actualVSC.Name)
-			assert.Equalf(t, tc.expectedVSC.Driver, actualVSC.Driver, "unexpected driver name returned. Want: %s; Got:%s", tc.name, tc.expectedVSC.Driver, actualVSC.Driver)
+			assert.Equalf(t, tc.expectedVSC.Name, actualVSC.Name, "unexpected volumesnapshotclass name returned. Want: %s; Got:%s", tc.expectedVSC.Name, actualVSC.Name)
+			assert.Equalf(t, tc.expectedVSC.Driver, actualVSC.Driver, "unexpected driver name returned. Want: %s; Got:%s", tc.expectedVSC.Driver, actualVSC.Driver)
 		})
 	}
 }
