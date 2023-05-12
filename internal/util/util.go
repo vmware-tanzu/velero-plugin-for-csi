@@ -43,7 +43,8 @@ import (
 )
 
 const (
-	VolumeSnapshotKindName = "VolumeSnapshot"
+	VolumeSnapshotKindName    = "VolumeSnapshot"
+	defaultCSISnapshotTimeout = 10 * time.Minute
 )
 
 func GetPVForPVC(pvc *corev1api.PersistentVolumeClaim, corev1 corev1client.PersistentVolumesGetter) (*corev1api.PersistentVolume, error) {
@@ -150,7 +151,7 @@ func GetVolumeSnapshotClassForStorageClass(provisioner string, snapshotClient sn
 }
 
 // GetVolumeSnapshotContentForVolumeSnapshot returns the volumesnapshotcontent object associated with the volumesnapshot
-func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1api.VolumeSnapshot, snapshotClient snapshotter.SnapshotV1Interface, log logrus.FieldLogger, shouldWait bool) (*snapshotv1api.VolumeSnapshotContent, error) {
+func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1api.VolumeSnapshot, snapshotClient snapshotter.SnapshotV1Interface, log logrus.FieldLogger, shouldWait bool, csiSnapshotTimeout time.Duration) (*snapshotv1api.VolumeSnapshotContent, error) {
 	if !shouldWait {
 		if volSnap.Status == nil || volSnap.Status.BoundVolumeSnapshotContentName == nil {
 			// volumesnapshot hasn't been reconciled and we're not waiting for it.
@@ -163,9 +164,11 @@ func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1api.VolumeSnap
 		return vsc, nil
 	}
 
-	// We'll wait 10m for the VSC to be reconciled polling every 5s
-	// TODO: make this timeout configurable.
-	timeout := 10 * time.Minute
+	// We'll wait 10m for the VSC to be reconciled polling every 5s unless csiSnapshotTimeout is set
+	timeout := defaultCSISnapshotTimeout
+	if csiSnapshotTimeout > 0 {
+		timeout = csiSnapshotTimeout
+	}
 	interval := 5 * time.Second
 	var snapshotContent *snapshotv1api.VolumeSnapshotContent
 

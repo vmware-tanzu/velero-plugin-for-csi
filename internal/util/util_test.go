@@ -918,7 +918,7 @@ func TestGetVolumeSnapshotContentForVolumeSnapshot(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualVSC, actualError := GetVolumeSnapshotContentForVolumeSnapshot(tc.volSnap, fakeClient.SnapshotV1(), logrus.New().WithField("fake", "test"), tc.wait)
+			actualVSC, actualError := GetVolumeSnapshotContentForVolumeSnapshot(tc.volSnap, fakeClient.SnapshotV1(), logrus.New().WithField("fake", "test"), tc.wait, 0)
 			if tc.expectError && actualError == nil {
 				assert.NotNil(t, actualError)
 				assert.Nil(t, actualVSC)
