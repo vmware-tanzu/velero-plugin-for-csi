@@ -95,7 +95,7 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 
 	p.Log.Infof("Getting VolumesnapshotContent for Volumesnapshot %s/%s", vs.Namespace, vs.Name)
 
-	vsc, err := util.GetVolumeSnapshotContentForVolumeSnapshot(&vs, snapshotClient.SnapshotV1(), p.Log, backupOngoing)
+	vsc, err := util.GetVolumeSnapshotContentForVolumeSnapshot(&vs, snapshotClient.SnapshotV1(), p.Log, backupOngoing, backup.Spec.CSISnapshotTimeout.Duration)
 	if err != nil {
 		util.CleanupVolumeSnapshot(&vs, snapshotClient.SnapshotV1(), p.Log)
 		return nil, nil, "", nil, errors.WithStack(err)
