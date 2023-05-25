@@ -35,6 +35,7 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/kuberesource"
 	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
+	biav2 "github.com/vmware-tanzu/velero/pkg/plugin/velero/backupitemaction/v2"
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
 
@@ -54,60 +55,60 @@ func (p *PVCBackupItemAction) AppliesTo() (velero.ResourceSelector, error) {
 
 // Execute recognizes PVCs backed by volumes provisioned by CSI drivers with volumesnapshotting capability and creates snapshots of the
 // underlying PVs by creating volumesnapshot CSI API objects that will trigger the CSI driver to perform the snapshot operation on the volume.
-func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
+func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, string, []velero.ResourceIdentifier, error) {
 	p.Log.Info("Starting PVCBackupItemAction")
 
 	// Do nothing if volume snapshots have not been requested in this backup
 	if boolptr.IsSetToFalse(backup.Spec.SnapshotVolumes) {
 		p.Log.Infof("Volume snapshotting not requested for backup %s/%s", backup.Namespace, backup.Name)
-		return item, nil, nil
+		return item, nil, "", nil, nil
 	}
 
 	var pvc corev1api.PersistentVolumeClaim
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &pvc); err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, "", nil, errors.WithStack(err)
 	}
 
 	client, snapshotClient, err := util.GetClients()
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, "", nil, errors.WithStack(err)
 	}
 
 	p.Log.Debugf("Fetching underlying PV for PVC %s", fmt.Sprintf("%s/%s", pvc.Namespace, pvc.Name))
 	// Do nothing if this is not a CSI provisioned volume
 	pv, err := util.GetPVForPVC(&pvc, client.CoreV1())
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, "", nil, errors.WithStack(err)
 	}
 	if pv.Spec.PersistentVolumeSource.CSI == nil {
 		p.Log.Infof("Skipping PVC %s/%s, associated PV %s is not a CSI volume", pvc.Namespace, pvc.Name, pv.Name)
-		return item, nil, nil
+		return item, nil, "", nil, nil
 	}
 
 	// Do nothing if FS uploader is used to backup this PV
 	isFSUploaderUsed, err := util.IsPVCDefaultToFSBackup(pvc.Namespace, pvc.Name, client.CoreV1(), boolptr.IsSetToTrue(backup.Spec.DefaultVolumesToFsBackup))
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, "", nil, errors.WithStack(err)
 	}
 	if isFSUploaderUsed {
 		p.Log.Infof("Skipping  PVC %s/%s, PV %s will be backed up using FS uploader", pvc.Namespace, pvc.Name, pv.Name)
-		return item, nil, nil
+		return item, nil, "", nil, nil
 	}
 
 	// no storage class: we don't know how to map to a VolumeSnapshotClass
 	if pvc.Spec.StorageClassName == nil {
-		return item, nil, errors.Errorf("Cannot snapshot PVC %s/%s, PVC has no storage class.", pvc.Namespace, pvc.Name)
+		return item, nil, "", nil, errors.Errorf("Cannot snapshot PVC %s/%s, PVC has no storage class.", pvc.Namespace, pvc.Name)
 	}
 
 	p.Log.Infof("Fetching storage class for PV %s", *pvc.Spec.StorageClassName)
 	storageClass, err := client.StorageV1().StorageClasses().Get(context.TODO(), *pvc.Spec.StorageClassName, metav1.GetOptions{})
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "error getting storage class")
+		return nil, nil, "", nil, errors.Wrap(err, "error getting storage class")
 	}
 	p.Log.Debugf("Fetching volumesnapshot class for %s", storageClass.Provisioner)
 	snapshotClass, err := util.GetVolumeSnapshotClassForStorageClass(storageClass.Provisioner, snapshotClient.SnapshotV1())
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "failed to get volumesnapshotclass for storageclass %s", storageClass.Name)
+		return nil, nil, "", nil, errors.Wrapf(err, "failed to get volumesnapshotclass for storageclass %s", storageClass.Name)
 	}
 	p.Log.Infof("volumesnapshot class=%s", snapshotClass.Name)
 
@@ -130,7 +131,7 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 
 	upd, err := snapshotClient.SnapshotV1().VolumeSnapshots(pvc.Namespace).Create(context.TODO(), &snapshot, metav1.CreateOptions{})
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "error creating volume snapshot")
+		return nil, nil, "", nil, errors.Wrapf(err, "error creating volume snapshot")
 	}
 	p.Log.Infof("Created volumesnapshot %s", fmt.Sprintf("%s/%s", upd.Namespace, upd.Name))
 
@@ -160,8 +161,25 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 
 	pvcMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&pvc)
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, "", nil, errors.WithStack(err)
 	}
 
-	return &unstructured.Unstructured{Object: pvcMap}, additionalItems, nil
+	return &unstructured.Unstructured{Object: pvcMap}, additionalItems, "", nil, nil
+}
+
+func (p *PVCBackupItemAction) Name() string {
+	return "PVCBackupItemAction"
+}
+
+func (p *PVCBackupItemAction) Progress(operationID string, backup *velerov1api.Backup) (velero.OperationProgress, error) {
+	progress := velero.OperationProgress{}
+	if operationID == "" {
+		return progress, biav2.InvalidOperationIDError(operationID)
+	}
+
+	return progress, nil
+}
+
+func (p *PVCBackupItemAction) Cancel(operationID string, backup *velerov1api.Backup) error {
+	return nil
 }
