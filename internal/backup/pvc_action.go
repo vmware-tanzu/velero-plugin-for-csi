@@ -111,14 +111,18 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 	}
 	p.Log.Infof("volumesnapshot class=%s", snapshotClass.Name)
 
+	vsLabels := map[string]string{}
+	for k, v := range pvc.ObjectMeta.Labels {
+		vsLabels[k] = v
+	}
+	vsLabels[velerov1api.BackupNameLabel] = label.GetValidName(backup.Name)
+
 	// Craft the snapshot object to be created
 	snapshot := snapshotv1api.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "velero-" + pvc.Name + "-",
 			Namespace:    pvc.Namespace,
-			Labels: map[string]string{
-				velerov1api.BackupNameLabel: label.GetValidName(backup.Name),
-			},
+			Labels:       vsLabels,
 		},
 		Spec: snapshotv1api.VolumeSnapshotSpec{
 			Source: snapshotv1api.VolumeSnapshotSource{
