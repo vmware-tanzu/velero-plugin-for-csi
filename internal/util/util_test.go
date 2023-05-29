@@ -25,6 +25,7 @@ import (
 	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	snapshotFake "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
 	"github.com/sirupsen/logrus"
+	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -619,6 +620,213 @@ func TestIsPVCDefaultToFSBackup(t *testing.T) {
 	}
 }
 
+func TestGetVolumeSnapshotClass(t *testing.T) {
+	// backups
+	backupFoo := &velerov1api.Backup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "foo",
+			Annotations: map[string]string{
+				"velero.io/csi-volumesnapshot-class/foo.csi.k8s.io": "foowithoutlabel",
+			},
+		},
+		Spec: velerov1api.BackupSpec{
+			IncludedNamespaces: []string{"ns1", "ns2"},
+		},
+	}
+	backupFoo2 := &velerov1api.Backup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "foo2",
+			Annotations: map[string]string{
+				"velero.io/csi-volumesnapshot-class/foo.csi.k8s.io": "foo2",
+			},
+		},
+		Spec: velerov1api.BackupSpec{
+			IncludedNamespaces: []string{"ns1", "ns2"},
+		},
+	}
+
+	backupBar2 := &velerov1api.Backup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "bar",
+			Annotations: map[string]string{
+				"velero.io/csi-volumesnapshot-class/bar.csi.k8s.io": "bar2",
+			},
+		},
+		Spec: velerov1api.BackupSpec{
+			IncludedNamespaces: []string{"ns1", "ns2"},
+		},
+	}
+
+	backupNone := &velerov1api.Backup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "none",
+		},
+		Spec: velerov1api.BackupSpec{
+			IncludedNamespaces: []string{"ns1", "ns2"},
+		},
+	}
+
+	// pvcs
+	pvcFoo := &v1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "foo",
+			Annotations: map[string]string{
+				"velero.io/csi-volumesnapshot-class": "foowithoutlabel",
+			},
+		},
+		Spec: v1.PersistentVolumeClaimSpec{},
+	}
+	pvcFoo2 := &v1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "foo",
+			Annotations: map[string]string{
+				"velero.io/csi-volumesnapshot-class": "foo2",
+			},
+		},
+		Spec: v1.PersistentVolumeClaimSpec{},
+	}
+	pvcNone := &v1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "none",
+		},
+		Spec: v1.PersistentVolumeClaimSpec{},
+	}
+
+	// vsclasses
+	hostpathClass := &snapshotv1api.VolumeSnapshotClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "hostpath",
+			Labels: map[string]string{
+				VolumeSnapshotClassSelectorLabel: "foo",
+			},
+		},
+		Driver: "hostpath.csi.k8s.io",
+	}
+
+	fooClass := &snapshotv1api.VolumeSnapshotClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "foo",
+			Labels: map[string]string{
+				VolumeSnapshotClassSelectorLabel: "foo",
+			},
+		},
+		Driver: "foo.csi.k8s.io",
+	}
+	fooClassWithoutLabel := &snapshotv1api.VolumeSnapshotClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "foowithoutlabel",
+		},
+		Driver: "foo.csi.k8s.io",
+	}
+
+	barClass := &snapshotv1api.VolumeSnapshotClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "bar",
+			Labels: map[string]string{
+				VolumeSnapshotClassSelectorLabel: "true",
+			},
+		},
+		Driver: "bar.csi.k8s.io",
+	}
+
+	barClass2 := &snapshotv1api.VolumeSnapshotClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "bar2",
+			Labels: map[string]string{
+				VolumeSnapshotClassSelectorLabel: "true",
+			},
+		},
+		Driver: "bar.csi.k8s.io",
+	}
+
+	objs := []runtime.Object{hostpathClass, fooClass, barClass, fooClassWithoutLabel, barClass2}
+	fakeClient := snapshotFake.NewSimpleClientset(objs...)
+
+	testCases := []struct {
+		name        string
+		driverName  string
+		pvc         *v1.PersistentVolumeClaim
+		backup      *velerov1api.Backup
+		expectedVSC *snapshotv1api.VolumeSnapshotClass
+		expectError bool
+	}{
+		{
+			name:        "no annotations on pvc and backup, should find hostpath volumesnapshotclass using default behaviour of labels",
+			driverName:  "hostpath.csi.k8s.io",
+			pvc:         pvcNone,
+			backup:      backupNone,
+			expectedVSC: hostpathClass,
+			expectError: false,
+		},
+		{
+			name:        "foowithoutlabel VSC annotations on pvc",
+			driverName:  "foo.csi.k8s.io",
+			pvc:         pvcFoo,
+			backup:      backupNone,
+			expectedVSC: fooClassWithoutLabel,
+			expectError: false,
+		},
+		{
+			name:        "foowithoutlabel VSC annotations on pvc, but csi driver does not match, no annotation on backup so fallback to default behaviour of labels",
+			driverName:  "bar.csi.k8s.io",
+			pvc:         pvcFoo,
+			backup:      backupNone,
+			expectedVSC: barClass,
+			expectError: false,
+		},
+		{
+			name:        "foowithoutlabel VSC annotations on pvc, but csi driver does not match so fallback to fetch from backupAnnotations ",
+			driverName:  "bar.csi.k8s.io",
+			pvc:         pvcFoo,
+			backup:      backupBar2,
+			expectedVSC: barClass2,
+			expectError: false,
+		},
+		{
+			name:        "foowithoutlabel VSC annotations on backup for foo.csi.k8s.io",
+			driverName:  "foo.csi.k8s.io",
+			pvc:         pvcNone,
+			backup:      backupFoo,
+			expectedVSC: fooClassWithoutLabel,
+			expectError: false,
+		},
+		{
+			name:        "foowithoutlabel VSC annotations on backup for bar.csi.k8s.io, no annotation corresponding to foo.csi.k8s.io, so fallback to default behaviour of labels",
+			driverName:  "bar.csi.k8s.io",
+			pvc:         pvcNone,
+			backup:      backupFoo,
+			expectedVSC: barClass,
+			expectError: false,
+		},
+		{
+			name:        "no snapshotClass for given driver",
+			driverName:  "blah.csi.k8s.io",
+			pvc:         pvcNone,
+			backup:      backupNone,
+			expectedVSC: nil,
+			expectError: true,
+		},
+		{
+			name:        "foo2 VSC annotations on pvc, but doesn't exist in cluster, fallback to default behaviour of labels",
+			driverName:  "foo.csi.k8s.io",
+			pvc:         pvcFoo2,
+			backup:      backupFoo2,
+			expectedVSC: fooClass,
+			expectError: false,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actualSnapshotClass, actualError := GetVolumeSnapshotClass(tc.pvc, tc.driverName, tc.backup, logrus.New(), fakeClient.SnapshotV1())
+			if tc.expectError {
+				assert.NotNil(t, actualError)
+				assert.Nil(t, actualSnapshotClass)
+				return
+			}
+			assert.Equal(t, tc.expectedVSC, actualSnapshotClass)
+		})
+	}
+}
 func TestGetVolumeSnapshotClassForStorageClass(t *testing.T) {
 	hostpathClass := &snapshotv1api.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
@@ -671,8 +879,10 @@ func TestGetVolumeSnapshotClassForStorageClass(t *testing.T) {
 		Driver: "amb.csi.k8s.io",
 	}
 
-	objs := []runtime.Object{hostpathClass, fooClass, barClass, bazClass, ambClass1, ambClass2}
-	fakeClient := snapshotFake.NewSimpleClientset(objs...)
+	snapshotClasses := &snapshotv1api.VolumeSnapshotClassList{
+		Items: []snapshotv1api.VolumeSnapshotClass{
+			*hostpathClass, *fooClass, *barClass, *bazClass, *ambClass1, *ambClass2},
+	}
 
 	testCases := []struct {
 		name        string
@@ -720,7 +930,7 @@ func TestGetVolumeSnapshotClassForStorageClass(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualVSC, actualError := GetVolumeSnapshotClassForStorageClass(tc.driverName, fakeClient.SnapshotV1())
+			actualVSC, actualError := GetVolumeSnapshotClassForStorageClass(tc.driverName, snapshotClasses)
 
 			if tc.expectError {
 				assert.NotNil(t, actualError)
