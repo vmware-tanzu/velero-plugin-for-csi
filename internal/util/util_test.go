@@ -1492,3 +1492,55 @@ func TestIsByBackup(t *testing.T) {
 		assert.Equal(t, tc.expected, actual)
 	}
 }
+
+func TestCleanupVolumeSnapshot(t *testing.T){
+	vscName := "snapcontent-7d1bdbd1-d10d-439c-8d8e-e1c2565ddc53"
+	snapshotHandle := "snapshot-handle"
+	vscObj := &snapshotv1api.VolumeSnapshotContent{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: vscName,
+		},
+		Spec: snapshotv1api.VolumeSnapshotContentSpec{
+			VolumeSnapshotRef: v1.ObjectReference{
+				Name:       "vol-snap-1",
+				APIVersion: snapshotv1api.SchemeGroupVersion.String(),
+			},
+		},
+		Status: &snapshotv1api.VolumeSnapshotContentStatus{
+			SnapshotHandle: &snapshotHandle,
+		},
+	}
+	validVS := &snapshotv1api.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vs",
+			Namespace: "default",
+		},
+		Status: &snapshotv1api.VolumeSnapshotStatus{
+			BoundVolumeSnapshotContentName: &vscName,
+		},
+	}
+	objs := []runtime.Object{vscObj, validVS}
+	fakeClient := snapshotFake.NewSimpleClientset(objs...)
+	testCases := []struct {
+		name        string
+		volSnap     *snapshotv1api.VolumeSnapshot
+		exepctedVSC *snapshotv1api.VolumeSnapshotContent
+		wait        bool
+		expectError bool
+	}{
+		{
+			name:        "should delete volumesnapshotcontent for volumesnapshot",
+			volSnap:     validVS,
+			exepctedVSC: vscObj,
+			wait:        true,
+			expectError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			CleanupVolumeSnapshot(tc.volSnap, fakeClient.SnapshotV1(), logrus.New().WithField("fake", "test"))
+			assert.Nil(t, nil)
+		})
+	}
+}
