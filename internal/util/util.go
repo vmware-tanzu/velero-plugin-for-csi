@@ -37,6 +37,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	veleroClientSet "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
 	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/podvolume"
 )
@@ -212,26 +213,37 @@ func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1api.VolumeSnap
 	return snapshotContent, nil
 }
 
-func GetClients() (*kubernetes.Clientset, *snapshotterClientSet.Clientset, error) {
+func GetClients() (*kubernetes.Clientset, snapshotterClientSet.Interface, error) {
+	client, snapshotterClient, _, err := GetFullClients()
+
+	return client, snapshotterClient, err
+}
+
+func GetFullClients() (*kubernetes.Clientset, snapshotterClientSet.Interface, *veleroClientSet.Clientset, error) {
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 	configOverrides := &clientcmd.ConfigOverrides{}
 	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
 	clientConfig, err := kubeConfig.ClientConfig()
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, nil, errors.WithStack(err)
 	}
 
 	client, err := kubernetes.NewForConfig(clientConfig)
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, nil, errors.WithStack(err)
 	}
 
 	snapshotterClient, err := snapshotterClientSet.NewForConfig(clientConfig)
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, nil, errors.WithStack(err)
 	}
 
-	return client, snapshotterClient, nil
+	veleroClient, err := veleroClientSet.NewForConfig(clientConfig)
+	if err != nil {
+		return nil, nil, nil, errors.WithStack(err)
+	}
+
+	return client, snapshotterClient, veleroClient, nil
 }
 
 // IsVolumeSnapshotClassHasListerSecret returns whether a volumesnapshotclass has a snapshotlister secret
@@ -432,4 +444,11 @@ func recreateVolumeSnapshotContent(vsc snapshotv1api.VolumeSnapshotContent, back
 	}
 
 	return nil
+}
+
+func DeleteVolumeSnapshotIfAny(ctx context.Context, snapshotClient snapshotterClientSet.Interface,
+	vs snapshotv1api.VolumeSnapshot, log logrus.FieldLogger) {
+	if err := snapshotClient.SnapshotV1().VolumeSnapshots(vs.Namespace).Delete(ctx, vs.Name, metav1.DeleteOptions{}); err != nil {
+		log.WithError(err).Warnf("fail to delete VolumeSnapshot %s/%s", vs.Namespace, vs.Name)
+	}
 }

@@ -42,4 +42,7 @@ const (
 	// ResourceTimeoutAnnotation is the annotation key used to carry the global resoure
 	// timeout value for backup to plugins.
 	ResourceTimeoutAnnotation = "velero.io/resource-timeout"
+
+	// AsyncOperationIDLabel is the label key used to identify the async operation ID
+	AsyncOperationIDLabel = "velero.io/async-operation-id"
 )
