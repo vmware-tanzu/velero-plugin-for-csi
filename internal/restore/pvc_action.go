@@ -122,6 +122,9 @@ func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInp
 		}, nil
 	}
 
+	// remove the volumesnapshot name annotation as well
+	removePVCAnnotations(&pvc, []string{util.VolumeSnapshotLabel})
+
 	if boolptr.IsSetToFalse(input.Restore.Spec.RestorePVs) {
 		p.Log.Infof("Restore did not request for PVs to be restored from snapshot %s/%s.", input.Restore.Namespace, input.Restore.Name)
 		pvc.Spec.VolumeName = ""
