@@ -74,7 +74,7 @@ func resetPVCSpec(pvc *corev1api.PersistentVolumeClaim, vsName string) {
 	pvc.Spec.VolumeName = ""
 	dataSourceRef := &corev1api.TypedLocalObjectReference{
 		APIGroup: &snapshotv1api.SchemeGroupVersion.Group,
-		Kind:     "VolumeSnapshot",
+		Kind:     util.VolumeSnapshotKindName,
 		Name:     vsName,
 	}
 	pvc.Spec.DataSource = dataSourceRef

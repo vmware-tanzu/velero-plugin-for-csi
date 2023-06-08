@@ -38,4 +38,8 @@ const (
 
 	// Velero checks this annotation to determine whether to skip resource excluding check.
 	MustIncludeAdditionalItemAnnotation = "backup.velero.io/must-include-additional-items"
+
+	// ResourceTimeoutAnnotation is the annotation key used to carry the global resoure
+	// timeout value for backup to plugins.
+	ResourceTimeoutAnnotation = "velero.io/resource-timeout"
 )

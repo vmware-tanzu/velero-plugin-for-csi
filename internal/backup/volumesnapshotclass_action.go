@@ -28,6 +28,7 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
+	biav2 "github.com/vmware-tanzu/velero/pkg/plugin/velero/backupitemaction/v2"
 )
 
 // VolumeSnapshotClassBackupItemAction is a backup item action plugin to backup
@@ -46,12 +47,12 @@ func (p *VolumeSnapshotClassBackupItemAction) AppliesTo() (velero.ResourceSelect
 }
 
 // Execute backs up a VolumeSnapshotClass object and returns as additional items any snapshot lister secret that may be referenced in its annotations.
-func (p *VolumeSnapshotClassBackupItemAction) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
+func (p *VolumeSnapshotClassBackupItemAction) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, string, []velero.ResourceIdentifier, error) {
 	p.Log.Infof("Executing VolumeSnapshotClassBackupItemAction")
 
 	var snapClass snapshotv1api.VolumeSnapshotClass
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &snapClass); err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, "", nil, errors.WithStack(err)
 	}
 
 	additionalItems := []velero.ResourceIdentifier{}
@@ -69,9 +70,26 @@ func (p *VolumeSnapshotClassBackupItemAction) Execute(item runtime.Unstructured,
 
 	snapClassMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&snapClass)
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, "", nil, errors.WithStack(err)
 	}
 
 	p.Log.Infof("Returning from VolumeSnapshotClassBackupItemAction with %d additionalItems to backup", len(additionalItems))
-	return &unstructured.Unstructured{Object: snapClassMap}, additionalItems, nil
+	return &unstructured.Unstructured{Object: snapClassMap}, additionalItems, "", nil, nil
+}
+
+func (p *VolumeSnapshotClassBackupItemAction) Name() string {
+	return "VolumeSnapshotClassBackupItemAction"
+}
+
+func (p *VolumeSnapshotClassBackupItemAction) Progress(operationID string, backup *velerov1api.Backup) (velero.OperationProgress, error) {
+	progress := velero.OperationProgress{}
+	if operationID == "" {
+		return progress, biav2.InvalidOperationIDError(operationID)
+	}
+
+	return progress, nil
+}
+
+func (p *VolumeSnapshotClassBackupItemAction) Cancel(operationID string, backup *velerov1api.Backup) error {
+	return nil
 }

@@ -110,7 +110,7 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 				DeletionPolicy: snapshotv1api.VolumeSnapshotContentRetain,
 				Driver:         csiDriverName,
 				VolumeSnapshotRef: core_v1.ObjectReference{
-					Kind:      "VolumeSnapshot",
+					Kind:      util.VolumeSnapshotKindName,
 					Namespace: vs.Namespace,
 					Name:      vs.Name,
 				},

@@ -19,6 +19,8 @@ package backup
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -35,6 +37,8 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/kuberesource"
 	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
+	biav2 "github.com/vmware-tanzu/velero/pkg/plugin/velero/backupitemaction/v2"
+	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
 
 // VolumeSnapshotBackupItemAction is a backup item action plugin to backup
@@ -54,17 +58,18 @@ func (p *VolumeSnapshotBackupItemAction) AppliesTo() (velero.ResourceSelector, e
 
 // Execute backs up a CSI volumesnapshot object and captures, as labels and annotations, information from its associated volumesnapshotcontents such as CSI driver name, storage snapshot handle
 // and namespace and name of the snapshot delete secret, if any. It returns the volumesnapshotclass and the volumesnapshotcontents as additional items to be backed up.
-func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
+func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier,
+	string, []velero.ResourceIdentifier, error) {
 	p.Log.Infof("Executing VolumeSnapshotBackupItemAction")
 
 	var vs snapshotv1api.VolumeSnapshot
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &vs); err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, "", nil, errors.WithStack(err)
 	}
 
 	_, snapshotClient, err := util.GetClients()
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, "", nil, errors.WithStack(err)
 	}
 
 	additionalItems := []velero.ResourceIdentifier{
@@ -93,12 +98,17 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 	vsc, err := util.GetVolumeSnapshotContentForVolumeSnapshot(&vs, snapshotClient.SnapshotV1(), p.Log, backupOngoing)
 	if err != nil {
 		util.CleanupVolumeSnapshot(&vs, snapshotClient.SnapshotV1(), p.Log)
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, "", nil, errors.WithStack(err)
 	}
 
-	annotations := map[string]string{
-		util.MustIncludeAdditionalItemAnnotation: "true",
+	if backup.Status.Phase == velerov1api.BackupPhaseFinalizing || backup.Status.Phase == velerov1api.BackupPhaseFinalizingPartiallyFailed {
+		p.Log.WithField("Backup", fmt.Sprintf("%s/%s", backup.Namespace, backup.Name)).
+			WithField("BackupPhase", backup.Status.Phase).Debugf("Clean VolumeSnapshots.")
+		util.DeleteVolumeSnapshot(vs, *vsc, backup, snapshotClient.SnapshotV1(), p.Log)
+		return item, nil, "", nil, nil
 	}
+
+	annotations := make(map[string]string)
 
 	if vsc != nil {
 		// when we are backing up volumesnapshots created outside of velero, we will not
@@ -125,9 +135,9 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 		}
 
 		if backupOngoing {
-			p.Log.Infof("Patching volumensnapshotcontent %s with velero BackupNameLabel", vsc.Name)
+			p.Log.Infof("Patching volumesnapshotcontent %s with velero BackupNameLabel", vsc.Name)
 			// If we created the volumesnapshotcontent object during this ongoing backup, we would have created it with a DeletionPolicy of Retain.
-			// But, we want to retain these volumesnapsshotcontent ONLY for the lifetime of the backup. To that effect, during velero backup
+			// But, we want to retain these volumesnapshotcontent ONLY for the lifetime of the backup. To that effect, during velero backup
 			// deletion, we will update the DeletionPolicy of the volumesnapshotcontent and then delete the VolumeSnapshot object which will
 			// cascade delete the volumesnapshotcontent and the associated snapshot in the storage provider (handled by the CSI driver and
 			// the CSI common controller).
@@ -144,12 +154,29 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 		}
 	}
 
+	// Before applying the BIA v2, the in-cluster VS state is not persisted into backup.
+	// After the change, because the final state of VS will be stored in backup as the
+	// result of async operation result, need to patch the annotations into VS to work,
+	// because restore will check the annotations information.
+	pb := "{\"metadata\":{\"annotations\":{"
+	for k, v := range annotations {
+		pb += fmt.Sprintf("\"%s\":\"%s\",", k, v)
+	}
+	pb = strings.Trim(pb, ",")
+	pb += "}}}"
+	if _, err := snapshotClient.SnapshotV1().VolumeSnapshots(vs.Namespace).Patch(context.TODO(),
+		vs.Name, types.MergePatchType, []byte(pb), metav1.PatchOptions{}); err != nil {
+		p.Log.Errorf("Fail to patch volumesnapshot with content %s: %s.", pb, err.Error())
+		return nil, nil, "", nil, errors.WithStack(err)
+	}
+
+	annotations[util.MustIncludeAdditionalItemAnnotation] = "true"
 	// save newly applied annotations into the backed-up volumesnapshot item
 	util.AddAnnotations(&vs.ObjectMeta, annotations)
 
 	vsMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vs)
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, "", nil, errors.WithStack(err)
 	}
 
 	p.Log.Infof("Returning from VolumeSnapshotBackupItemAction with %d additionalItems to backup", len(additionalItems))
@@ -157,5 +184,69 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 		p.Log.Debugf("%s: %s", ai.GroupResource.String(), ai.Name)
 	}
 
-	return &unstructured.Unstructured{Object: vsMap}, additionalItems, nil
+	// The operationID is of the form <namespace>/<volumesnapshot-name>/<started-time>
+	operationID := vs.Namespace + "/" + vs.Name + "/" + time.Now().Format(time.RFC3339)
+	itemToUpdate := []velero.ResourceIdentifier{
+		{
+			GroupResource: kuberesource.VolumeSnapshots,
+			Namespace:     vs.Namespace,
+			Name:          vs.Name,
+		},
+	}
+
+	return &unstructured.Unstructured{Object: vsMap}, additionalItems, operationID, itemToUpdate, nil
+}
+
+func (p *VolumeSnapshotBackupItemAction) Name() string {
+	return "VolumeSnapshotBackupItemAction"
+}
+
+func (p *VolumeSnapshotBackupItemAction) Progress(operationID string, backup *velerov1api.Backup) (velero.OperationProgress, error) {
+	progress := velero.OperationProgress{}
+	if operationID == "" {
+		return progress, biav2.InvalidOperationIDError(operationID)
+	}
+	// The operationID is of the form <namespace>/<volumesnapshot-name>/<started-time>
+	operationIDParts := strings.Split(operationID, "/")
+	if len(operationIDParts) != 3 {
+		p.Log.Errorf("invalid operation ID %s", operationID)
+		return progress, biav2.InvalidOperationIDError(operationID)
+	}
+	var err error
+	if progress.Started, err = time.Parse(time.RFC3339, operationIDParts[2]); err != nil {
+		p.Log.Errorf("error parsing operation ID's StartedTime part into time %s: %s", operationID, err.Error())
+		return progress, errors.WithStack(err)
+	}
+
+	_, snapshotClient, err := util.GetClients()
+	if err != nil {
+		return progress, errors.WithStack(err)
+	}
+
+	vs, err := snapshotClient.SnapshotV1().VolumeSnapshots(operationIDParts[0]).Get(context.Background(), operationIDParts[1], metav1.GetOptions{})
+	if err != nil {
+		p.Log.Errorf("error getting volumesnapshot %s/%s: %s", operationIDParts[0], operationIDParts[1], err.Error())
+		return progress, errors.WithStack(err)
+	}
+
+	if vs.Status == nil {
+		p.Log.Debugf("VolumeSnapshot %s/%s has an empty status. Skip progress update.", vs.Namespace, vs.Name)
+		return progress, nil
+	}
+
+	if boolptr.IsSetToTrue(vs.Status.ReadyToUse) {
+		progress.Completed = true
+	} else if vs.Status.Error != nil {
+		progress.Completed = true
+		if vs.Status.Error.Message != nil {
+			progress.Err = *vs.Status.Error.Message
+		}
+	}
+
+	return progress, nil
+}
+
+func (p *VolumeSnapshotBackupItemAction) Cancel(operationID string, backup *velerov1api.Backup) error {
+	// CSI Specification doesn't support canceling a snapshot creation.
+	return nil
 }
