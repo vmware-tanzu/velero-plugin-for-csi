@@ -263,6 +263,9 @@ func (p *PVCBackupItemAction) Progress(operationID string, backup *velerov1api.B
 	} else if dataUpload.Status.Phase == velerov2alpha1.DataUploadPhaseFailed {
 		progress.Completed = true
 		progress.Err = dataUpload.Status.Message
+	} else if dataUpload.Status.Phase == velerov2alpha1.DataUploadPhaseCanceled {
+		progress.Completed = true
+		progress.Err = "DataUpload is canceled"
 	}
 
 	return progress, nil
