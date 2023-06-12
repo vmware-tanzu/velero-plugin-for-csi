@@ -19,7 +19,6 @@ package backup
 import (
 	"context"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -52,7 +51,7 @@ func TestExecute(t *testing.T) {
 		pv                 *corev1.PersistentVolume
 		sc                 *storagev1.StorageClass
 		vs                 *snapshotv1api.VolumeSnapshot
-		vsc                *snapshotv1api.VolumeSnapshotClass
+		vsClass            *snapshotv1api.VolumeSnapshotClass
 		operationID        string
 		expectedErr        error
 		expectedBackup     *velerov1api.Backup
@@ -70,11 +69,12 @@ func TestExecute(t *testing.T) {
 		},
 		{
 			name:        "Test SnapshotMoveData",
-			backup:      builder.ForBackup("velero", "test").Result(),
-			pvc:         builder.ForPersistentVolumeClaim("velero", "testPVC").VolumeName("testPV").StorageClass("testSC").Result(),
+			backup:      builder.ForBackup("velero", "test").SnapshotMoveData(true).Result(),
+			pvc:         builder.ForPersistentVolumeClaim("velero", "testPVC").VolumeName("testPV").StorageClass("testSC").Phase(corev1.ClaimBound).Result(),
 			pv:          builder.ForPersistentVolume("testPV").CSI("hostpath", "testVolume").Result(),
-			sc:          builder.ForStorageClass("testSC").Result(),
+			sc:          builder.ForStorageClass("testSC").Provisioner("hostpath").Result(),
 			vs:          builder.ForVolumeSnapshot("velero", "testVS").Result(),
+			vsClass:     builder.ForVolumeSnapshotClass("tescVSClass").Driver("hostpath").ObjectMeta(builder.WithLabels(util.VolumeSnapshotClassSelectorLabel, "")).Result(),
 			operationID: ".",
 			expectedErr: nil,
 			expectedDataUpload: &velerov2alpha1.DataUpload{
@@ -123,22 +123,6 @@ func TestExecute(t *testing.T) {
 			logger := logrus.New()
 			logger.Level = logrus.DebugLevel
 
-			// TODO: after velero builder package added the unsupported method, this block can be removed.
-			if strings.Contains(tc.name, "SnapshotMoveData") {
-				tc.backup.Spec.SnapshotMoveData = &boolTrue
-				tc.pvc.Status.Phase = corev1.ClaimBound
-				tc.sc.Provisioner = "hostpath"
-				snapshotClient.SnapshotV1().VolumeSnapshotClasses().Create(context.Background(), &snapshotv1api.VolumeSnapshotClass{
-					TypeMeta: metav1.TypeMeta{},
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							util.VolumeSnapshotClassSelectorLabel: "",
-						},
-					},
-					Driver: "hostpath",
-				}, metav1.CreateOptions{})
-			}
-
 			if tc.pvc != nil {
 				_, err := client.CoreV1().PersistentVolumeClaims(tc.pvc.Namespace).Create(context.Background(), tc.pvc, metav1.CreateOptions{})
 				require.NoError(t, err)
@@ -149,6 +133,10 @@ func TestExecute(t *testing.T) {
 			}
 			if tc.sc != nil {
 				_, err := client.StorageV1().StorageClasses().Create(context.Background(), tc.sc, metav1.CreateOptions{})
+				require.NoError(t, err)
+			}
+			if tc.vsClass != nil {
+				_, err := snapshotClient.SnapshotV1().VolumeSnapshotClasses().Create(context.Background(), tc.vsClass, metav1.CreateOptions{})
 				require.NoError(t, err)
 			}
 
@@ -163,7 +151,6 @@ func TestExecute(t *testing.T) {
 			require.NoError(t, err)
 
 			_, _, _, _, err = pvcBIA.Execute(&unstructured.Unstructured{Object: pvcMap}, tc.backup)
-			fmt.Println(err)
 			if tc.expectedErr != nil {
 				require.Equal(t, err, tc.expectedErr)
 			}
@@ -172,7 +159,6 @@ func TestExecute(t *testing.T) {
 				dataUploadList, err := veleroClient.VeleroV2alpha1().DataUploads(tc.backup.Namespace).List(context.Background(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=%s", velerov1api.BackupNameLabel, tc.backup.Name)})
 				require.NoError(t, err)
 				require.Equal(t, 1, len(dataUploadList.Items))
-				fmt.Printf("%+v\n", dataUploadList.Items)
 				require.Equal(t, *tc.expectedDataUpload, dataUploadList.Items[0])
 			}
 		})

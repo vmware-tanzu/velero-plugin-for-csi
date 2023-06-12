@@ -34,10 +34,10 @@ func main() {
 		RegisterBackupItemActionV2("velero.io/csi-volumesnapshot-backupper", newVolumeSnapshotBackupItemAction).
 		RegisterBackupItemActionV2("velero.io/csi-volumesnapshotclass-backupper", newVolumesnapshotClassBackupItemAction).
 		RegisterBackupItemActionV2("velero.io/csi-volumesnapshotcontent-backupper", newVolumeSnapContentBackupItemAction).
-		RegisterRestoreItemAction("velero.io/csi-pvc-restorer", newPVCRestoreItemAction).
-		RegisterRestoreItemAction("velero.io/csi-volumesnapshot-restorer", newVolumeSnapshotRestoreItemAction).
-		RegisterRestoreItemAction("velero.io/csi-volumesnapshotclass-restorer", newVolumeSnapshotClassRestoreItemAction).
-		RegisterRestoreItemAction("velero.io/csi-volumesnapshotcontent-restorer", newVolumeSnapshotContentRestoreItemAction).
+		RegisterRestoreItemActionV2("velero.io/csi-pvc-restorer", newPVCRestoreItemAction).
+		RegisterRestoreItemActionV2("velero.io/csi-volumesnapshot-restorer", newVolumeSnapshotRestoreItemAction).
+		RegisterRestoreItemActionV2("velero.io/csi-volumesnapshotclass-restorer", newVolumeSnapshotClassRestoreItemAction).
+		RegisterRestoreItemActionV2("velero.io/csi-volumesnapshotcontent-restorer", newVolumeSnapshotContentRestoreItemAction).
 		RegisterDeleteItemAction("velero.io/csi-volumesnapshot-delete", newVolumeSnapshotDeleteItemAction).
 		RegisterDeleteItemAction("velero.io/csi-volumesnapshotcontent-delete", newVolumeSnapshotContentDeleteItemAction).
 		Serve()
@@ -70,7 +70,17 @@ func newVolumeSnapContentBackupItemAction(logger logrus.FieldLogger) (interface{
 }
 
 func newPVCRestoreItemAction(logger logrus.FieldLogger) (interface{}, error) {
-	return &restore.PVCRestoreItemAction{Log: logger}, nil
+	client, snapshotClient, veleroClient, err := util.GetFullClients()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return &restore.PVCRestoreItemAction{
+		Log:            logger,
+		Client:         client,
+		SnapshotClient: snapshotClient,
+		VeleroClient:   veleroClient,
+	}, nil
 }
 
 func newVolumeSnapshotContentRestoreItemAction(logger logrus.FieldLogger) (interface{}, error) {

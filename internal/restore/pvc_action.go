@@ -18,9 +18,11 @@ package restore
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	snapshotterClientSet "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
@@ -29,9 +31,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
+	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
+	veleroClientSet "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
+	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
+	riav2 "github.com/vmware-tanzu/velero/pkg/plugin/velero/restoreitemaction/v2"
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
 
@@ -45,7 +53,10 @@ const (
 
 // PVCRestoreItemAction is a restore item action plugin for Velero
 type PVCRestoreItemAction struct {
-	Log logrus.FieldLogger
+	Log            logrus.FieldLogger
+	Client         kubernetes.Interface
+	SnapshotClient snapshotterClientSet.Interface
+	VeleroClient   veleroClientSet.Interface
 }
 
 // AppliesTo returns information indicating that the PVCRestoreItemAction should be run while restoring PVCs.
@@ -100,6 +111,7 @@ func setPVCStorageResourceRequest(pvc *corev1api.PersistentVolumeClaim, restoreS
 // can be pre-populated with data from the volumesnapshot.
 func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
 	var pvc corev1api.PersistentVolumeClaim
+
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &pvc); err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -165,4 +177,54 @@ func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInp
 	return &velero.RestoreItemActionExecuteOutput{
 		UpdatedItem: &unstructured.Unstructured{Object: pvcMap},
 	}, nil
+}
+
+func (p *PVCRestoreItemAction) Name() string {
+	return "PVCRestoreItemAction"
+}
+
+func (p *PVCRestoreItemAction) Progress(operationID string, restore *velerov1api.Restore) (velero.OperationProgress, error) {
+	progress := velero.OperationProgress{}
+
+	if operationID == "" {
+		return progress, riav2.InvalidOperationIDError(operationID)
+	}
+
+	return progress, nil
+}
+
+func (p *PVCRestoreItemAction) Cancel(operationID string, restore *velerov1api.Restore) error {
+	return nil
+}
+
+func getDataUploadResult(ctx context.Context, restore *velerov1api.Restore, pvc *corev1api.PersistentVolumeClaim,
+	kubeClient kubernetes.Interface) (*velerov2alpha1.DataUploadResult, error) {
+	cmList, err := kubeClient.CoreV1().ConfigMaps(restore.Namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("%s=%s,%s=%s", velerov1api.BackupNameLabel, label.GetValidName(restore.Spec.BackupName),
+			util.PVCNamespaceNameLabel, pvc.Namespace+"/"+pvc.Name),
+	})
+	if err != nil {
+		return nil, errors.Wrapf(err, "error to get DataUpload result cm with name %s", restore.Spec.BackupName)
+	}
+
+	if len(cmList.Items) == 0 {
+		return nil, errors.Errorf("no DataUpload result cm found for %s", restore.Spec.BackupName)
+	}
+
+	if len(cmList.Items) > 1 {
+		return nil, errors.Errorf("multiple DataUpload result cms found for %s", restore.Spec.BackupName)
+	}
+
+	jsonBytes, exist := cmList.Items[0].Data[string(restore.UID)]
+	if !exist {
+		return nil, errors.Errorf("no DataUpload result found with restore key %s, restore %s", string(restore.UID), restore.Name)
+	}
+
+	result := velerov2alpha1.DataUploadResult{}
+	err = json.Unmarshal([]byte(jsonBytes), &result)
+	if err != nil {
+		return nil, errors.Errorf("error to unmarshal DataUploadResult, restore UID %s, restore name %s", string(restore.UID), restore.Name)
+	}
+
+	return &result, nil
 }
