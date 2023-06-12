@@ -17,11 +17,13 @@ limitations under the License.
 package main
 
 import (
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/backup"
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/delete"
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/restore"
+	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	veleroplugin "github.com/vmware-tanzu/velero/pkg/plugin/framework"
 )
 
@@ -42,7 +44,17 @@ func main() {
 }
 
 func newPVCBackupItemAction(logger logrus.FieldLogger) (interface{}, error) {
-	return &backup.PVCBackupItemAction{Log: logger}, nil
+	client, snapshotClient, veleroClient, err := util.GetFullClients()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return &backup.PVCBackupItemAction{
+		Log:            logger,
+		Client:         client,
+		SnapshotClient: snapshotClient,
+		VeleroClient:   veleroClient,
+	}, nil
 }
 
 func newVolumeSnapshotBackupItemAction(logger logrus.FieldLogger) (interface{}, error) {

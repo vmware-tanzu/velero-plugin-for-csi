@@ -137,7 +137,7 @@ func (p *VolumeSnapshotContentBackupItemAction) Progress(operationID string, bac
 	}
 
 	if vsc.Status == nil {
-		p.Log.Debug("VolumeSnapshotContent %s has an empty Status. Skip progress update.", vsc.Name)
+		p.Log.Debugf("VolumeSnapshotContent %s has an empty Status. Skip progress update.", vsc.Name)
 		return progress, nil
 	}
 
