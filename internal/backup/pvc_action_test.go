@@ -26,8 +26,6 @@ import (
 	snapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
-	velerofake "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned/fake"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,10 +33,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
 
+	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	"github.com/vmware-tanzu/velero/pkg/apis/velero/shared"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
 	"github.com/vmware-tanzu/velero/pkg/builder"
+	velerofake "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned/fake"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 )
 
@@ -89,7 +89,7 @@ func TestExecute(t *testing.T) {
 						velerov1api.BackupNameLabel: "test",
 						velerov1api.BackupUIDLabel:  "",
 						velerov1api.PVCUIDLabel:     "",
-						util.AsyncOperationIDLabel:  ".",
+						util.AsyncOperationIDLabel:  "du-.",
 					},
 					OwnerReferences: []metav1.OwnerReference{
 						{

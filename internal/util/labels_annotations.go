@@ -50,4 +50,15 @@ const (
 	// PVCNameLabel is the label key used to identify the the PVC's namespace and name.
 	// The format is <namespace>/<name>.
 	PVCNamespaceNameLabel = "velero.io/pvc-namespace-name"
+
+	// DynamicPVRestoreLabel is the label key for dynamic PV restore
+	DynamicPVRestoreLabel = "velero.io/dynamic-pv-restore"
+)
+
+// TODO: need to use Velero server side type after it's added.
+type AsyncOperationIDPrefix string
+
+const (
+	AsyncOperationIDPrefixDataDownload AsyncOperationIDPrefix = "dd-"
+	AsyncOperationIDPrefixDataUpload   AsyncOperationIDPrefix = "du-"
 )

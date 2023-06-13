@@ -172,7 +172,7 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 	var itemToUpdate []velero.ResourceIdentifier
 
 	if boolptr.IsSetToTrue(backup.Spec.SnapshotMoveData) {
-		operationID = label.GetValidName(string(backup.UID) + "." + string(pvc.UID))
+		operationID = label.GetValidName(string(util.AsyncOperationIDPrefixDataUpload) + string(backup.UID) + "." + string(pvc.UID))
 		dataUploadLog := p.Log.WithFields(logrus.Fields{
 			"Source PVC":     fmt.Sprintf("%s/%s", pvc.Namespace, pvc.Name),
 			"VolumeSnapshot": fmt.Sprintf("%s/%s", upd.Namespace, upd.Name),
