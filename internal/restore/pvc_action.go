@@ -197,6 +197,10 @@ func (p *PVCRestoreItemAction) Cancel(operationID string, restore *velerov1api.R
 	return nil
 }
 
+func (p *PVCRestoreItemAction) AreAdditionalItemsReady(additionalItems []velero.ResourceIdentifier, restore *velerov1api.Restore) (bool, error) {
+	return true, nil
+}
+
 func getDataUploadResult(ctx context.Context, restore *velerov1api.Restore, pvc *corev1api.PersistentVolumeClaim,
 	kubeClient kubernetes.Interface) (*velerov2alpha1.DataUploadResult, error) {
 	cmList, err := kubeClient.CoreV1().ConfigMaps(restore.Namespace).List(ctx, metav1.ListOptions{
