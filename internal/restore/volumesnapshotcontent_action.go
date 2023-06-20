@@ -92,3 +92,7 @@ func (p *VolumeSnapshotContentRestoreItemAction) Progress(operationID string, re
 func (p *VolumeSnapshotContentRestoreItemAction) Cancel(operationID string, restore *velerov1api.Restore) error {
 	return nil
 }
+
+func (p *VolumeSnapshotContentRestoreItemAction) AreAdditionalItemsReady(additionalItems []velero.ResourceIdentifier, restore *velerov1api.Restore) (bool, error) {
+	return true, nil
+}
