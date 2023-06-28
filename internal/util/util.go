@@ -23,12 +23,12 @@ import (
 	"time"
 
 	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
-
 	snapshotterClientSet "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	snapshotter "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/typed/volumesnapshot/v1"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	corev1api "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -37,8 +37,13 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	veleroClientSet "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
 	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/podvolume"
+)
+
+const (
+	VolumeSnapshotKindName = "VolumeSnapshot"
 )
 
 func GetPVForPVC(pvc *corev1api.PersistentVolumeClaim, corev1 corev1client.PersistentVolumesGetter) (*corev1api.PersistentVolume, error) {
@@ -270,26 +275,37 @@ func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1api.VolumeSnap
 	return snapshotContent, nil
 }
 
-func GetClients() (*kubernetes.Clientset, *snapshotterClientSet.Clientset, error) {
+func GetClients() (*kubernetes.Clientset, snapshotterClientSet.Interface, error) {
+	client, snapshotterClient, _, err := GetFullClients()
+
+	return client, snapshotterClient, err
+}
+
+func GetFullClients() (*kubernetes.Clientset, snapshotterClientSet.Interface, *veleroClientSet.Clientset, error) {
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 	configOverrides := &clientcmd.ConfigOverrides{}
 	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
 	clientConfig, err := kubeConfig.ClientConfig()
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, nil, errors.WithStack(err)
 	}
 
 	client, err := kubernetes.NewForConfig(clientConfig)
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, nil, errors.WithStack(err)
 	}
 
 	snapshotterClient, err := snapshotterClientSet.NewForConfig(clientConfig)
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, nil, errors.WithStack(err)
 	}
 
-	return client, snapshotterClient, nil
+	veleroClient, err := veleroClientSet.NewForConfig(clientConfig)
+	if err != nil {
+		return nil, nil, nil, errors.WithStack(err)
+	}
+
+	return client, snapshotterClient, veleroClient, nil
 }
 
 // IsVolumeSnapshotClassHasListerSecret returns whether a volumesnapshotclass has a snapshotlister secret
@@ -386,5 +402,115 @@ func CleanupVolumeSnapshot(volSnap *snapshotv1api.VolumeSnapshot, snapshotClient
 		log.Debugf("Failed to delete volumesnapshot %s/%s: %v", vs.Namespace, vs.Name, err)
 	} else {
 		log.Info("Deleted volumesnapshot with volumesnapshotContent %s/%s", vs.Namespace, vs.Name)
+	}
+}
+
+// deleteVolumeSnapshot is called by deleteVolumeSnapshots and handles the single VolumeSnapshot
+// instance.
+func DeleteVolumeSnapshot(vs snapshotv1api.VolumeSnapshot, vsc snapshotv1api.VolumeSnapshotContent,
+	backup *velerov1api.Backup, snapshotClient snapshotter.SnapshotV1Interface, logger logrus.FieldLogger) {
+	modifyVSCFlag := false
+	if vs.Status != nil && vs.Status.BoundVolumeSnapshotContentName != nil && len(*vs.Status.BoundVolumeSnapshotContentName) > 0 {
+		if vsc.Spec.DeletionPolicy == snapshotv1api.VolumeSnapshotContentDelete {
+			modifyVSCFlag = true
+		}
+	} else {
+		logger.Errorf("VolumeSnapshot %s/%s is not ready. This is not expected.", vs.Namespace, vs.Name)
+	}
+
+	// Change VolumeSnapshotContent's DeletionPolicy to Retain before deleting VolumeSnapshot,
+	// because VolumeSnapshotContent will be deleted by deleting VolumeSnapshot, when
+	// DeletionPolicy is set to Delete, but Velero needs VSC for cleaning snapshot on cloud
+	// in backup deletion.
+	if modifyVSCFlag {
+		logger.Debugf("Patching VolumeSnapshotContent %s", vsc.Name)
+		patchData := []byte(fmt.Sprintf(`{"spec":{"deletionPolicy":"%s"}}`, snapshotv1api.VolumeSnapshotContentRetain))
+		updatedVSC, err := snapshotClient.VolumeSnapshotContents().Patch(context.Background(), vsc.Name, types.MergePatchType, patchData, metav1.PatchOptions{})
+		if err != nil {
+			logger.Errorf("fail to modify VolumeSnapshotContent %s DeletionPolicy to Retain: %s", vsc.Name, err.Error())
+			return
+		}
+
+		defer func() {
+			logger.Debugf("Start to recreate VolumeSnapshotContent %s", updatedVSC.Name)
+			err := recreateVolumeSnapshotContent(*updatedVSC, backup, snapshotClient, logger)
+			if err != nil {
+				logger.Errorf("fail to recreate VolumeSnapshotContent %s: %s", updatedVSC.Name, err.Error())
+			}
+		}()
+	}
+
+	// Delete VolumeSnapshot from cluster
+	logger.Debugf("Deleting VolumeSnapshot %s/%s", vs.Namespace, vs.Name)
+	err := snapshotClient.VolumeSnapshots(vs.Namespace).Delete(context.TODO(), vs.Name, metav1.DeleteOptions{})
+	if err != nil {
+		logger.Errorf("fail to delete VolumeSnapshot %s/%s: %s", vs.Namespace, vs.Name, err.Error())
+	}
+}
+
+// recreateVolumeSnapshotContent will delete then re-create VolumeSnapshotContent,
+// because some parameter in VolumeSnapshotContent Spec is immutable, e.g. VolumeSnapshotRef
+// and Source. Source is updated to let csi-controller thinks the VSC is statically provsisioned with VS.
+// Set VolumeSnapshotRef's UID to nil will let the csi-controller finds out the related VS is gone, then
+// VSC can be deleted.
+func recreateVolumeSnapshotContent(vsc snapshotv1api.VolumeSnapshotContent, backup *velerov1api.Backup,
+	snapshotClient snapshotter.SnapshotV1Interface, log logrus.FieldLogger) error {
+	// Read resource timeout from backup annotation, if not set, use default value.
+	timeout, err := time.ParseDuration(backup.Annotations[ResourceTimeoutAnnotation])
+	if err != nil {
+		log.Warnf("fail to parse resource timeout annotation %s: %s", backup.Annotations[ResourceTimeoutAnnotation], err.Error())
+		timeout = 10 * time.Minute
+	}
+	log.Debugf("resource timeout is set to %s", timeout.String())
+	interval := 1 * time.Second
+
+	err = snapshotClient.VolumeSnapshotContents().Delete(context.TODO(), vsc.Name, metav1.DeleteOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "fail to delete VolumeSnapshotContent: %s", vsc.Name)
+	}
+
+	// Check VolumeSnapshotContents is already deleted, before re-creating it.
+	err = wait.PollImmediate(interval, timeout, func() (bool, error) {
+		_, err := snapshotClient.VolumeSnapshotContents().Get(context.TODO(), vsc.Name, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return true, nil
+			}
+			return false, errors.Wrapf(err, fmt.Sprintf("failed to get VolumeSnapshotContent %s", vsc.Name))
+		}
+		return false, nil
+	})
+	if err != nil {
+		return errors.Wrapf(err, "fail to retrieve VolumeSnapshotContent %s info", vsc.Name)
+	}
+
+	// Make the VolumeSnapshotContent static
+	vsc.Spec.Source = snapshotv1api.VolumeSnapshotContentSource{
+		SnapshotHandle: vsc.Status.SnapshotHandle,
+	}
+	// Set VolumeSnapshotRef to none exist one, because VolumeSnapshotContent
+	// validation webhook will check whether name and namespace are nil.
+	// external-snapshotter needs Source pointing to snapshot and VolumeSnapshot
+	// reference's UID to nil to determine the VolumeSnapshotContent is deletable.
+	vsc.Spec.VolumeSnapshotRef = corev1api.ObjectReference{
+		APIVersion: snapshotv1api.SchemeGroupVersion.String(),
+		Kind:       "VolumeSnapshot",
+		Namespace:  "ns-" + string(vsc.UID),
+		Name:       "name-" + string(vsc.UID),
+	}
+	// ResourceVersion shouldn't exist for new creation.
+	vsc.ResourceVersion = ""
+	_, err = snapshotClient.VolumeSnapshotContents().Create(context.TODO(), &vsc, metav1.CreateOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "fail to create VolumeSnapshotContent %s", vsc.Name)
+	}
+
+	return nil
+}
+
+func DeleteVolumeSnapshotIfAny(ctx context.Context, snapshotClient snapshotterClientSet.Interface,
+	vs snapshotv1api.VolumeSnapshot, log logrus.FieldLogger) {
+	if err := snapshotClient.SnapshotV1().VolumeSnapshots(vs.Namespace).Delete(ctx, vs.Name, metav1.DeleteOptions{}); err != nil {
+		log.WithError(err).Warnf("fail to delete VolumeSnapshot %s/%s", vs.Namespace, vs.Name)
 	}
 }

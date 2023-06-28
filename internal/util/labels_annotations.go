@@ -40,4 +40,27 @@ const (
 
 	// Velero checks this annotation to determine whether to skip resource excluding check.
 	MustIncludeAdditionalItemAnnotation = "backup.velero.io/must-include-additional-items"
+
+	// ResourceTimeoutAnnotation is the annotation key used to carry the global resoure
+	// timeout value for backup to plugins.
+	ResourceTimeoutAnnotation = "velero.io/resource-timeout"
+
+	// AsyncOperationIDLabel is the label key used to identify the async operation ID
+	AsyncOperationIDLabel = "velero.io/async-operation-id"
+
+	// TODO: need to use Velero server side label after it's added.
+	// PVCNameLabel is the label key used to identify the the PVC's namespace and name.
+	// The format is <namespace>/<name>.
+	PVCNamespaceNameLabel = "velero.io/pvc-namespace-name"
+
+	// DynamicPVRestoreLabel is the label key for dynamic PV restore
+	DynamicPVRestoreLabel = "velero.io/dynamic-pv-restore"
+)
+
+// TODO: need to use Velero server side type after it's added.
+type AsyncOperationIDPrefix string
+
+const (
+	AsyncOperationIDPrefixDataDownload AsyncOperationIDPrefix = "dd-"
+	AsyncOperationIDPrefixDataUpload   AsyncOperationIDPrefix = "du-"
 )

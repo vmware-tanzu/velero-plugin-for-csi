@@ -25,7 +25,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
+	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
+	riav2 "github.com/vmware-tanzu/velero/pkg/plugin/velero/restoreitemaction/v2"
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
 
@@ -71,4 +73,26 @@ func (p *VolumeSnapshotContentRestoreItemAction) Execute(input *velero.RestoreIt
 		UpdatedItem:     input.Item,
 		AdditionalItems: additionalItems,
 	}, nil
+}
+
+func (p *VolumeSnapshotContentRestoreItemAction) Name() string {
+	return "VolumeSnapshotContentRestoreItemAction"
+}
+
+func (p *VolumeSnapshotContentRestoreItemAction) Progress(operationID string, restore *velerov1api.Restore) (velero.OperationProgress, error) {
+	progress := velero.OperationProgress{}
+
+	if operationID == "" {
+		return progress, riav2.InvalidOperationIDError(operationID)
+	}
+
+	return progress, nil
+}
+
+func (p *VolumeSnapshotContentRestoreItemAction) Cancel(operationID string, restore *velerov1api.Restore) error {
+	return nil
+}
+
+func (p *VolumeSnapshotContentRestoreItemAction) AreAdditionalItemsReady(additionalItems []velero.ResourceIdentifier, restore *velerov1api.Restore) (bool, error) {
+	return true, nil
 }

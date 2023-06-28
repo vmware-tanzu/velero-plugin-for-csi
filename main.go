@@ -17,32 +17,44 @@ limitations under the License.
 package main
 
 import (
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/backup"
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/delete"
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/restore"
+	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	veleroplugin "github.com/vmware-tanzu/velero/pkg/plugin/framework"
 )
 
 func main() {
 	veleroplugin.NewServer().
 		BindFlags(pflag.CommandLine).
-		RegisterBackupItemAction("velero.io/csi-pvc-backupper", newPVCBackupItemAction).
-		RegisterBackupItemAction("velero.io/csi-volumesnapshot-backupper", newVolumeSnapshotBackupItemAction).
-		RegisterBackupItemAction("velero.io/csi-volumesnapshotclass-backupper", newVolumesnapshotClassBackupItemAction).
-		RegisterBackupItemAction("velero.io/csi-volumesnapshotcontent-backupper", newVolumeSnapContentBackupItemAction).
-		RegisterRestoreItemAction("velero.io/csi-pvc-restorer", newPVCRestoreItemAction).
-		RegisterRestoreItemAction("velero.io/csi-volumesnapshot-restorer", newVolumeSnapshotRestoreItemAction).
-		RegisterRestoreItemAction("velero.io/csi-volumesnapshotclass-restorer", newVolumeSnapshotClassRestoreItemAction).
-		RegisterRestoreItemAction("velero.io/csi-volumesnapshotcontent-restorer", newVolumeSnapshotContentRestoreItemAction).
+		RegisterBackupItemActionV2("velero.io/csi-pvc-backupper", newPVCBackupItemAction).
+		RegisterBackupItemActionV2("velero.io/csi-volumesnapshot-backupper", newVolumeSnapshotBackupItemAction).
+		RegisterBackupItemActionV2("velero.io/csi-volumesnapshotclass-backupper", newVolumesnapshotClassBackupItemAction).
+		RegisterBackupItemActionV2("velero.io/csi-volumesnapshotcontent-backupper", newVolumeSnapContentBackupItemAction).
+		RegisterRestoreItemActionV2("velero.io/csi-pvc-restorer", newPVCRestoreItemAction).
+		RegisterRestoreItemActionV2("velero.io/csi-volumesnapshot-restorer", newVolumeSnapshotRestoreItemAction).
+		RegisterRestoreItemActionV2("velero.io/csi-volumesnapshotclass-restorer", newVolumeSnapshotClassRestoreItemAction).
+		RegisterRestoreItemActionV2("velero.io/csi-volumesnapshotcontent-restorer", newVolumeSnapshotContentRestoreItemAction).
 		RegisterDeleteItemAction("velero.io/csi-volumesnapshot-delete", newVolumeSnapshotDeleteItemAction).
 		RegisterDeleteItemAction("velero.io/csi-volumesnapshotcontent-delete", newVolumeSnapshotContentDeleteItemAction).
 		Serve()
 }
 
 func newPVCBackupItemAction(logger logrus.FieldLogger) (interface{}, error) {
-	return &backup.PVCBackupItemAction{Log: logger}, nil
+	client, snapshotClient, veleroClient, err := util.GetFullClients()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return &backup.PVCBackupItemAction{
+		Log:            logger,
+		Client:         client,
+		SnapshotClient: snapshotClient,
+		VeleroClient:   veleroClient,
+	}, nil
 }
 
 func newVolumeSnapshotBackupItemAction(logger logrus.FieldLogger) (interface{}, error) {
@@ -58,7 +70,17 @@ func newVolumeSnapContentBackupItemAction(logger logrus.FieldLogger) (interface{
 }
 
 func newPVCRestoreItemAction(logger logrus.FieldLogger) (interface{}, error) {
-	return &restore.PVCRestoreItemAction{Log: logger}, nil
+	client, snapshotClient, veleroClient, err := util.GetFullClients()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return &restore.PVCRestoreItemAction{
+		Log:            logger,
+		Client:         client,
+		SnapshotClient: snapshotClient,
+		VeleroClient:   veleroClient,
+	}, nil
 }
 
 func newVolumeSnapshotContentRestoreItemAction(logger logrus.FieldLogger) (interface{}, error) {

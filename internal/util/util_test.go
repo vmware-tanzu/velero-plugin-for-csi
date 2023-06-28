@@ -20,16 +20,20 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	snapshotFake "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
 	"github.com/sirupsen/logrus"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
+
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	"github.com/vmware-tanzu/velero/pkg/builder"
+	"github.com/vmware-tanzu/velero/pkg/util/logging"
 )
 
 var (
@@ -174,6 +178,7 @@ func TestGetPodsUsingPVC(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "pod1",
 				Namespace: "default",
+        
 			},
 			Spec: v1.PodSpec{
 				Volumes: []v1.Volume{
@@ -1700,5 +1705,66 @@ func TestIsByBackup(t *testing.T) {
 	for _, tc := range testCases {
 		actual := HasBackupLabel(&tc.o, tc.backupName)
 		assert.Equal(t, tc.expected, actual)
+	}
+}
+
+func TestDeleteVolumeSnapshots(t *testing.T) {
+	tests := []struct {
+		name        string
+		vs          snapshotv1api.VolumeSnapshot
+		vsc         snapshotv1api.VolumeSnapshotContent
+		expectedVS  snapshotv1api.VolumeSnapshot
+		expectedVSC snapshotv1api.VolumeSnapshotContent
+	}{
+		{
+			name:        "VS is ReadyToUse, and VS has corresponding VSC. VS should be deleted.",
+			vs:          *builder.ForVolumeSnapshot("velero", "vs1").ObjectMeta(builder.WithLabels("testing-vs", "vs1")).Status().BoundVolumeSnapshotContentName("vsc1").Result(),
+			vsc:         *builder.ForVolumeSnapshotContent("vsc1").DeletionPolicy(snapshotv1api.VolumeSnapshotContentDelete).Status().Result(),
+			expectedVS:  snapshotv1api.VolumeSnapshot{},
+			expectedVSC: *builder.ForVolumeSnapshotContent("vsc1").DeletionPolicy(snapshotv1api.VolumeSnapshotContentRetain).VolumeSnapshotRef("ns-", "name-").Status().Result(),
+		},
+		{
+			name:        "VS is ReadyToUse, and VS has corresponding VSC. Concurrent test.",
+			vs:          *builder.ForVolumeSnapshot("velero", "vs1").ObjectMeta(builder.WithLabels("testing-vs", "vs1")).Status().BoundVolumeSnapshotContentName("vsc1").Result(),
+			vsc:         *builder.ForVolumeSnapshotContent("vsc1").DeletionPolicy(snapshotv1api.VolumeSnapshotContentDelete).Status().Result(),
+			expectedVS:  snapshotv1api.VolumeSnapshot{},
+			expectedVSC: *builder.ForVolumeSnapshotContent("vsc1").DeletionPolicy(snapshotv1api.VolumeSnapshotContentRetain).VolumeSnapshotRef("ns-", "name-").Status().Result(),
+		},
+		{
+			name:        "VS status is nil. VSC should not be modified.",
+			vs:          *builder.ForVolumeSnapshot("velero", "vs1").ObjectMeta(builder.WithLabels("testing-vs", "vs1")).Result(),
+			vsc:         *builder.ForVolumeSnapshotContent("vsc1").DeletionPolicy(snapshotv1api.VolumeSnapshotContentDelete).Status().Result(),
+			expectedVS:  snapshotv1api.VolumeSnapshot{},
+			expectedVSC: *builder.ForVolumeSnapshotContent("vsc1").DeletionPolicy(snapshotv1api.VolumeSnapshotContentDelete).Status().Result(),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			vsClient := snapshotFake.NewSimpleClientset()
+			logger := logging.DefaultLogger(logrus.DebugLevel, logging.FormatText)
+			backup := builder.ForBackup(velerov1.DefaultNamespace, "backup-1").DefaultVolumesToFsBackup(false).Result()
+
+			_, err := vsClient.SnapshotV1().VolumeSnapshots(tc.vs.Namespace).Create(context.Background(), &tc.vs, metav1.CreateOptions{})
+			require.NoError(t, err)
+			_, err = vsClient.SnapshotV1().VolumeSnapshotContents().Create(context.Background(), &tc.vsc, metav1.CreateOptions{})
+			require.NoError(t, err)
+
+			DeleteVolumeSnapshot(tc.vs, tc.vsc, backup, vsClient.SnapshotV1(), logger)
+
+			vsList, err := vsClient.SnapshotV1().VolumeSnapshots("velero").List(context.TODO(), metav1.ListOptions{})
+			require.NoError(t, err)
+			if tc.expectedVS.Name == "" {
+				require.Equal(t, 0, len(vsList.Items))
+			} else {
+				require.Equal(t, tc.expectedVS.Status, vsList.Items[0].Status)
+				require.Equal(t, tc.expectedVS.Spec, vsList.Items[0].Spec)
+			}
+
+			vscList, err := vsClient.SnapshotV1().VolumeSnapshotContents().List(context.TODO(), metav1.ListOptions{})
+			require.NoError(t, err)
+			require.Equal(t, 1, len(vscList.Items))
+			require.Equal(t, tc.expectedVSC.Spec, vscList.Items[0].Spec)
+		})
 	}
 }

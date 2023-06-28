@@ -32,6 +32,7 @@ import (
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
+	riav2 "github.com/vmware-tanzu/velero/pkg/plugin/velero/restoreitemaction/v2"
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
 
@@ -110,7 +111,7 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 				DeletionPolicy: snapshotv1api.VolumeSnapshotContentRetain,
 				Driver:         csiDriverName,
 				VolumeSnapshotRef: core_v1.ObjectReference{
-					Kind:      "VolumeSnapshot",
+					Kind:      util.VolumeSnapshotKindName,
 					Namespace: vs.Namespace,
 					Name:      vs.Name,
 				},
@@ -150,4 +151,26 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 		UpdatedItem:     &unstructured.Unstructured{Object: vsMap},
 		AdditionalItems: []velero.ResourceIdentifier{},
 	}, nil
+}
+
+func (p *VolumeSnapshotRestoreItemAction) Name() string {
+	return "VolumeSnapshotRestoreItemAction"
+}
+
+func (p *VolumeSnapshotRestoreItemAction) Progress(operationID string, restore *velerov1api.Restore) (velero.OperationProgress, error) {
+	progress := velero.OperationProgress{}
+
+	if operationID == "" {
+		return progress, riav2.InvalidOperationIDError(operationID)
+	}
+
+	return progress, nil
+}
+
+func (p *VolumeSnapshotRestoreItemAction) Cancel(operationID string, restore *velerov1api.Restore) error {
+	return nil
+}
+
+func (p *VolumeSnapshotRestoreItemAction) AreAdditionalItemsReady(additionalItems []velero.ResourceIdentifier, restore *velerov1api.Restore) (bool, error) {
+	return true, nil
 }
