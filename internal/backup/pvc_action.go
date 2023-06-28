@@ -123,7 +123,7 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 		return nil, nil, "", nil, errors.Wrap(err, "error getting storage class")
 	}
 	p.Log.Debugf("Fetching volumesnapshot class for %s", storageClass.Provisioner)
-	snapshotClass, err := util.GetVolumeSnapshotClass(storageClass.Provisioner, backup, &pvc, p.Log, snapshotClient.SnapshotV1())
+	snapshotClass, err := util.GetVolumeSnapshotClass(storageClass.Provisioner, backup, &pvc, p.Log, p.SnapshotClient.SnapshotV1())
 	if err != nil {
 		return nil, nil, "", nil, errors.Wrapf(err, "failed to get volumesnapshotclass for storageclass %s", storageClass.Name)
 	}
