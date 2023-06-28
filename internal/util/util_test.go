@@ -817,7 +817,7 @@ func TestGetVolumeSnapshotClass(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualSnapshotClass, actualError := GetVolumeSnapshotClass(tc.pvc, tc.driverName, tc.backup, logrus.New(), fakeClient.SnapshotV1())
+			actualSnapshotClass, actualError := GetVolumeSnapshotClass(tc.driverName, tc.backup, tc.pvc, logrus.New(), fakeClient.SnapshotV1())
 			if tc.expectError {
 				assert.NotNil(t, actualError)
 				assert.Nil(t, actualSnapshotClass)

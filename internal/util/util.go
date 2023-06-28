@@ -114,7 +114,7 @@ func IsPVCDefaultToFSBackup(pvcNamespace, pvcName string, podClient corev1client
 
 	return false, nil
 }
-func GetVolumeSnapshotClass(pvc *corev1api.PersistentVolumeClaim, provisioner string, backup *velerov1api.Backup, log logrus.FieldLogger, snapshotClient snapshotter.SnapshotV1Interface) (*snapshotv1api.VolumeSnapshotClass, error) {
+func GetVolumeSnapshotClass(provisioner string, backup *velerov1api.Backup, pvc *corev1api.PersistentVolumeClaim, log logrus.FieldLogger, snapshotClient snapshotter.SnapshotV1Interface) (*snapshotv1api.VolumeSnapshotClass, error) {
 	snapshotClasses, err := snapshotClient.VolumeSnapshotClasses().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, errors.Wrap(err, "error listing volumesnapshot classes")
@@ -163,7 +163,7 @@ func GetVolumeSnapshotClassFromPVCAnnotationsForDriver(pvc *corev1api.Persistent
 	return nil, errors.Errorf("No CSI VolumeSnapshotClass found with name %s for provisioner %s for PVC %s", snapshotClassName, provisioner, pvc.Name)
 }
 
-// GetVolumeSnapshotClassFromAnnotationsForStorageClass returns a VolumeSnapshotClass for the supplied volume provisioner/ driver name from the annotation of the backup
+// GetVolumeSnapshotClassFromAnnotationsForDriver returns a VolumeSnapshotClass for the supplied volume provisioner/ driver name from the annotation of the backup
 func GetVolumeSnapshotClassFromBackupAnnotationsForDriver(backup *velerov1api.Backup, provisioner string, snapshotClasses *snapshotv1api.VolumeSnapshotClassList) (*snapshotv1api.VolumeSnapshotClass, error) {
 	annotationKey := fmt.Sprintf("%s/%s", VolumeSnapshotClassDriverBackupAnnotationPrefix, strings.ToLower(provisioner))
 	snapshotClassName, ok := backup.ObjectMeta.Annotations[annotationKey]
