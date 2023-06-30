@@ -553,10 +553,14 @@ func TestExecute(t *testing.T) {
 			expectedErr: "Failed to get Volumesnapshot velero/testVS to restore PVC velero/testPVC: volumesnapshots.snapshot.storage.k8s.io \"testVS\" not found",
 		},
 		{
-			name:        "Restore from VolumeSnapshot",
-			backup:      builder.ForBackup("velero", "testBackup").Result(),
-			restore:     builder.ForRestore("velero", "testRestore").Backup("testBackup").Result(),
-			pvc:         builder.ForPersistentVolumeClaim("velero", "testPVC").ObjectMeta(builder.WithAnnotations(util.VolumeSnapshotLabel, "testVS")).Result(),
+			name:    "Restore from VolumeSnapshot",
+			backup:  builder.ForBackup("velero", "testBackup").Result(),
+			restore: builder.ForRestore("velero", "testRestore").Backup("testBackup").Result(),
+			pvc: builder.ForPersistentVolumeClaim("velero", "testPVC").ObjectMeta(builder.WithAnnotations(util.VolumeSnapshotLabel, "testVS")).
+				RequestResource(map[corev1api.ResourceName]resource.Quantity{corev1api.ResourceStorage: resource.MustParse("10Gi")}).
+				DataSource(&corev1api.TypedLocalObjectReference{APIGroup: &snapshotv1api.SchemeGroupVersion.Group, Kind: util.VolumeSnapshotKindName, Name: "testVS"}).
+				DataSourceRef(&corev1api.TypedLocalObjectReference{APIGroup: &snapshotv1api.SchemeGroupVersion.Group, Kind: util.VolumeSnapshotKindName, Name: "testVS"}).
+				Result(),
 			vs:          builder.ForVolumeSnapshot("velero", "testVS").ObjectMeta(builder.WithAnnotations(util.VolumeSnapshotRestoreSize, "10Gi")).Result(),
 			expectedPVC: builder.ForPersistentVolumeClaim("velero", "testPVC").ObjectMeta(builder.WithAnnotations("velero.io/volume-snapshot-name", "testVS")).Result(),
 		},
@@ -575,6 +579,10 @@ func TestExecute(t *testing.T) {
 			pvc:              builder.ForPersistentVolumeClaim("velero", "testPVC").ObjectMeta(builder.WithAnnotations(util.VolumeSnapshotRestoreSize, "10Gi")).Result(),
 			dataUploadResult: builder.ForConfigMap("velero", "testCM").Data("uid", "{}").ObjectMeta(builder.WithLabels(velerov1api.RestoreUIDLabel, "uid", util.PVCNamespaceNameLabel, "velero.testPVC")).Result(),
 			expectedPVC:      builder.ForPersistentVolumeClaim("velero", "testPVC").ObjectMeta(builder.WithAnnotations("velero.io/vsi-volumesnapshot-restore-size", "10Gi")).Result(),
+			expectedDataDownload: builder.ForDataDownload("velero", "").TargetVolume(velerov2alpha1.TargetVolumeSpec{PVC: "testPVC", Namespace: "velero"}).
+				ObjectMeta(builder.WithOwnerReference([]metav1.OwnerReference{{APIVersion: velerov1api.SchemeGroupVersion.String(), Kind: "Restore", Name: "testRestore", UID: "uid", Controller: boolptr.True()}}),
+					builder.WithLabelsMap(map[string]string{util.AsyncOperationIDLabel: "dd-uid.", velerov1api.RestoreNameLabel: "testRestore", velerov1api.RestoreUIDLabel: "uid"}),
+					builder.WithGenerateName("testRestore-")).Result(),
 		},
 	}
 
@@ -587,54 +595,6 @@ func TestExecute(t *testing.T) {
 				VeleroClient:   velerofake.NewSimpleClientset(),
 			}
 			input := new(velero.RestoreItemActionExecuteInput)
-
-			// TODO: after needed Velero builder methods are added, need to remove this block.
-			if tc.name == "Restore from VolumeSnapshot" {
-				requestMemory, _ := resource.ParseQuantity("10Gi")
-				tc.expectedPVC.Spec.Resources.Requests = make(map[corev1api.ResourceName]resource.Quantity)
-				tc.expectedPVC.Spec.Resources.Requests[corev1api.ResourceStorage] = requestMemory
-				tc.expectedPVC.Spec.DataSource = &corev1api.TypedLocalObjectReference{
-					APIGroup: &snapshotv1api.SchemeGroupVersion.Group,
-					Kind:     util.VolumeSnapshotKindName,
-					Name:     "testVS",
-				}
-				tc.expectedPVC.Spec.DataSourceRef = &corev1api.TypedLocalObjectReference{
-					APIGroup: &snapshotv1api.SchemeGroupVersion.Group,
-					Kind:     util.VolumeSnapshotKindName,
-					Name:     "testVS",
-				}
-			} else if tc.name == "Restore from DataUploadResult" {
-				tc.expectedDataDownload = &velerov2alpha1.DataDownload{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "DataDownload",
-						APIVersion: velerov2alpha1.SchemeGroupVersion.String(),
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						GenerateName: tc.restore.Name + "-",
-						Namespace:    "velero",
-						Labels: map[string]string{
-							util.AsyncOperationIDLabel:   "dd-uid.",
-							velerov1api.RestoreNameLabel: tc.restore.Name,
-							velerov1api.RestoreUIDLabel:  string(tc.restore.UID),
-						},
-						OwnerReferences: []metav1.OwnerReference{
-							{
-								APIVersion: velerov1api.SchemeGroupVersion.String(),
-								Kind:       "Restore",
-								Name:       tc.restore.Name,
-								UID:        tc.restore.UID,
-								Controller: boolptr.True(),
-							},
-						},
-					},
-					Spec: velerov2alpha1.DataDownloadSpec{
-						TargetVolume: velerov2alpha1.TargetVolumeSpec{
-							PVC:       tc.pvc.Name,
-							Namespace: tc.pvc.Namespace,
-						},
-					},
-				}
-			}
 
 			if tc.pvc != nil {
 				pvcMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(tc.pvc)
