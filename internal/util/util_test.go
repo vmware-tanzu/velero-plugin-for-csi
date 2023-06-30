@@ -1508,23 +1508,23 @@ func TestDeleteVolumeSnapshots(t *testing.T) {
 		{
 			name:        "VS is ReadyToUse, and VS has corresponding VSC. VS should be deleted.",
 			vs:          *builder.ForVolumeSnapshot("velero", "vs1").ObjectMeta(builder.WithLabels("testing-vs", "vs1")).Status().BoundVolumeSnapshotContentName("vsc1").Result(),
-			vsc:         *builder.ForVolumeSnapshotContent("vsc1").DeletionPolicy(snapshotv1api.VolumeSnapshotContentDelete).Status().Result(),
+			vsc:         *builder.ForVolumeSnapshotContent("vsc1").DeletionPolicy(snapshotv1api.VolumeSnapshotContentDelete).Status(&snapshotv1api.VolumeSnapshotContentStatus{}).Result(),
 			expectedVS:  snapshotv1api.VolumeSnapshot{},
-			expectedVSC: *builder.ForVolumeSnapshotContent("vsc1").DeletionPolicy(snapshotv1api.VolumeSnapshotContentRetain).VolumeSnapshotRef("ns-", "name-").Status().Result(),
+			expectedVSC: *builder.ForVolumeSnapshotContent("vsc1").DeletionPolicy(snapshotv1api.VolumeSnapshotContentRetain).VolumeSnapshotRef("ns-", "name-").Result(),
 		},
 		{
 			name:        "VS is ReadyToUse, and VS has corresponding VSC. Concurrent test.",
 			vs:          *builder.ForVolumeSnapshot("velero", "vs1").ObjectMeta(builder.WithLabels("testing-vs", "vs1")).Status().BoundVolumeSnapshotContentName("vsc1").Result(),
-			vsc:         *builder.ForVolumeSnapshotContent("vsc1").DeletionPolicy(snapshotv1api.VolumeSnapshotContentDelete).Status().Result(),
+			vsc:         *builder.ForVolumeSnapshotContent("vsc1").DeletionPolicy(snapshotv1api.VolumeSnapshotContentDelete).Status(&snapshotv1api.VolumeSnapshotContentStatus{}).Result(),
 			expectedVS:  snapshotv1api.VolumeSnapshot{},
-			expectedVSC: *builder.ForVolumeSnapshotContent("vsc1").DeletionPolicy(snapshotv1api.VolumeSnapshotContentRetain).VolumeSnapshotRef("ns-", "name-").Status().Result(),
+			expectedVSC: *builder.ForVolumeSnapshotContent("vsc1").DeletionPolicy(snapshotv1api.VolumeSnapshotContentRetain).VolumeSnapshotRef("ns-", "name-").Result(),
 		},
 		{
 			name:        "VS status is nil. VSC should not be modified.",
 			vs:          *builder.ForVolumeSnapshot("velero", "vs1").ObjectMeta(builder.WithLabels("testing-vs", "vs1")).Result(),
-			vsc:         *builder.ForVolumeSnapshotContent("vsc1").DeletionPolicy(snapshotv1api.VolumeSnapshotContentDelete).Status().Result(),
+			vsc:         *builder.ForVolumeSnapshotContent("vsc1").DeletionPolicy(snapshotv1api.VolumeSnapshotContentDelete).Status(&snapshotv1api.VolumeSnapshotContentStatus{}).Result(),
 			expectedVS:  snapshotv1api.VolumeSnapshot{},
-			expectedVSC: *builder.ForVolumeSnapshotContent("vsc1").DeletionPolicy(snapshotv1api.VolumeSnapshotContentDelete).Status().Result(),
+			expectedVSC: *builder.ForVolumeSnapshotContent("vsc1").DeletionPolicy(snapshotv1api.VolumeSnapshotContentDelete).Result(),
 		},
 	}
 

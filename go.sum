@@ -658,8 +658,8 @@ github.com/subosito/gotenv v1.2.0/go.mod h1:N0PQaV/YGNqwC0u51sEeR/aUtSLEXKX9iv69
 github.com/tg123/go-htpasswd v1.2.1 h1:i4wfsX1KvvkyoMiHZzjS0VzbAPWfxzI8INcZAKtutoU=
 github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
 github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
-github.com/vmware-tanzu/velero v0.0.0-20230620063525-6f3adcf7282b h1:mrsiuap4DAaF5ukPvJrFAiELcuHmLF2QVswJpIyVSP8=
-github.com/vmware-tanzu/velero v0.0.0-20230620063525-6f3adcf7282b/go.mod h1:URz7drKyNV58T6MuVdDH/iATs3/DorJI+IEVPZwdHZE=
+github.com/vmware-tanzu/velero v0.0.0-20230630063030-84eca51d22c7 h1:w/KPz4EQwQaaXes4gEgjrFrvygVSjjUaDQnm7VggtZ8=
+github.com/vmware-tanzu/velero v0.0.0-20230630063030-84eca51d22c7/go.mod h1:URz7drKyNV58T6MuVdDH/iATs3/DorJI+IEVPZwdHZE=
 github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f/go.mod h1:N2zxlSyiKSe5eX1tZViRH5QA0qijqEDrYZiPEAiq3wU=
 github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415/go.mod h1:GwrjFmJcFw6At/Gs6z4yjiIwzuJ1/+UwLxMQDVQXShQ=
 github.com/xeipuuv/gojsonschema v1.2.0/go.mod h1:anYRn/JVcOK2ZgGU+IjEV4nwlhoK5sQluxsYJ78Id3Y=
