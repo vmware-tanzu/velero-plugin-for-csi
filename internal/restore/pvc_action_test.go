@@ -31,6 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
@@ -39,6 +40,7 @@ import (
 	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
 	"github.com/vmware-tanzu/velero/pkg/builder"
 	velerofake "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned/fake"
+	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
@@ -375,7 +377,7 @@ func TestProgress(t *testing.T) {
 					Namespace: "velero",
 					Name:      "testing",
 					Labels: map[string]string{
-						util.AsyncOperationIDLabel: "testing",
+						velerov1api.AsyncOperationIDLabel: "testing",
 					},
 				},
 				Status: velerov2alpha1.DataDownloadStatus{
@@ -447,7 +449,7 @@ func TestCancel(t *testing.T) {
 					Namespace: "velero",
 					Name:      "testing",
 					Labels: map[string]string{
-						util.AsyncOperationIDLabel: "testing",
+						velerov1api.AsyncOperationIDLabel: "testing",
 					},
 				},
 			},
@@ -462,7 +464,7 @@ func TestCancel(t *testing.T) {
 					Namespace: "velero",
 					Name:      "testing",
 					Labels: map[string]string{
-						util.AsyncOperationIDLabel: "testing",
+						velerov1api.AsyncOperationIDLabel: "testing",
 					},
 				},
 				Spec: velerov2alpha1.DataDownloadSpec{
@@ -485,7 +487,7 @@ func TestCancel(t *testing.T) {
 					Namespace: "velero",
 					Name:      "testing",
 					Labels: map[string]string{
-						util.AsyncOperationIDLabel: "testing",
+						velerov1api.AsyncOperationIDLabel: "testing",
 					},
 				},
 				Spec: velerov2alpha1.DataDownloadSpec{
@@ -570,19 +572,27 @@ func TestExecute(t *testing.T) {
 			restore:     builder.ForRestore("velero", "testRestore").Backup("testBackup").Result(),
 			pvc:         builder.ForPersistentVolumeClaim("velero", "testPVC").ObjectMeta(builder.WithAnnotations(util.VolumeSnapshotRestoreSize, "10Gi")).Result(),
 			expectedPVC: builder.ForPersistentVolumeClaim("velero", "testPVC").Result(),
-			expectedErr: "fail get DataUploadResult for restore: testRestore: no DataUpload result cm found with labels velero.io/pvc-namespace-name=velero.testPVC,velero.io/restore-uid=",
+			expectedErr: "fail get DataUploadResult for restore: testRestore: no DataUpload result cm found with labels velero.io/pvc-namespace-name=velero.testPVC,velero.io/restore-uid=,velero.io/resource-usage=DataUpload",
 		},
 		{
 			name:             "Restore from DataUploadResult",
 			backup:           builder.ForBackup("velero", "testBackup").SnapshotMoveData(true).Result(),
 			restore:          builder.ForRestore("velero", "testRestore").Backup("testBackup").ObjectMeta(builder.WithUID("uid")).Result(),
 			pvc:              builder.ForPersistentVolumeClaim("velero", "testPVC").ObjectMeta(builder.WithAnnotations(util.VolumeSnapshotRestoreSize, "10Gi")).Result(),
-			dataUploadResult: builder.ForConfigMap("velero", "testCM").Data("uid", "{}").ObjectMeta(builder.WithLabels(velerov1api.RestoreUIDLabel, "uid", util.PVCNamespaceNameLabel, "velero.testPVC")).Result(),
+			dataUploadResult: builder.ForConfigMap("velero", "testCM").Data("uid", "{}").ObjectMeta(builder.WithLabels(velerov1api.RestoreUIDLabel, "uid", velerov1api.PVCNamespaceNameLabel, "velero.testPVC", velerov1api.ResourceUsageLabel, label.GetValidName(string(velerov1api.VeleroResourceUsageDataUploadResult)))).Result(),
 			expectedPVC:      builder.ForPersistentVolumeClaim("velero", "testPVC").ObjectMeta(builder.WithAnnotations("velero.io/vsi-volumesnapshot-restore-size", "10Gi")).Result(),
 			expectedDataDownload: builder.ForDataDownload("velero", "").TargetVolume(velerov2alpha1.TargetVolumeSpec{PVC: "testPVC", Namespace: "velero"}).
 				ObjectMeta(builder.WithOwnerReference([]metav1.OwnerReference{{APIVersion: velerov1api.SchemeGroupVersion.String(), Kind: "Restore", Name: "testRestore", UID: "uid", Controller: boolptr.True()}}),
-					builder.WithLabelsMap(map[string]string{util.AsyncOperationIDLabel: "dd-uid.", velerov1api.RestoreNameLabel: "testRestore", velerov1api.RestoreUIDLabel: "uid"}),
+					builder.WithLabelsMap(map[string]string{velerov1api.AsyncOperationIDLabel: "dd-uid.", velerov1api.RestoreNameLabel: "testRestore", velerov1api.RestoreUIDLabel: "uid"}),
 					builder.WithGenerateName("testRestore-")).Result(),
+		},
+		{
+			name:             "Restore from DataUploadResult with long source PVC namespace and name",
+			backup:           builder.ForBackup("migre209d0da-49c7-45ba-8d5a-3e59fd591ec1", "testBackup").SnapshotMoveData(true).Result(),
+			restore:          builder.ForRestore("migre209d0da-49c7-45ba-8d5a-3e59fd591ec1", "testRestore").Backup("testBackup").ObjectMeta(builder.WithUID("uid")).Result(),
+			pvc:              builder.ForPersistentVolumeClaim("migre209d0da-49c7-45ba-8d5a-3e59fd591ec1", "kibishii-data-kibishii-deployment-0").ObjectMeta(builder.WithAnnotations(util.VolumeSnapshotRestoreSize, "10Gi")).Result(),
+			dataUploadResult: builder.ForConfigMap("migre209d0da-49c7-45ba-8d5a-3e59fd591ec1", "testCM").Data("uid", "{}").ObjectMeta(builder.WithLabels(velerov1api.RestoreUIDLabel, "uid", velerov1api.PVCNamespaceNameLabel, "migre209d0da-49c7-45ba-8d5a-3e59fd591ec1.kibishii-data-ki152333", velerov1api.ResourceUsageLabel, label.GetValidName(string(velerov1api.VeleroResourceUsageDataUploadResult)))).Result(),
+			expectedPVC:      builder.ForPersistentVolumeClaim("migre209d0da-49c7-45ba-8d5a-3e59fd591ec1", "kibishii-data-kibishii-deployment-0").ObjectMeta(builder.WithAnnotations("velero.io/vsi-volumesnapshot-restore-size", "10Gi")).Result(),
 		},
 	}
 
@@ -633,7 +643,12 @@ func TestExecute(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, tc.expectedPVC.GetObjectMeta(), pvc.GetObjectMeta())
 				if pvc.Spec.Selector != nil && pvc.Spec.Selector.MatchLabels != nil {
-					require.Contains(t, pvc.Spec.Selector.MatchLabels[util.DynamicPVRestoreLabel], tc.pvc.Namespace+"."+tc.pvc.Name)
+					// This is used for long name and namespace case.
+					if len(tc.pvc.Namespace+"."+tc.pvc.Name) >= validation.DNS1035LabelMaxLength {
+						require.Contains(t, pvc.Spec.Selector.MatchLabels[util.DynamicPVRestoreLabel], label.GetValidName(tc.pvc.Namespace + "." + tc.pvc.Name)[:56])
+					} else {
+						require.Contains(t, pvc.Spec.Selector.MatchLabels[util.DynamicPVRestoreLabel], tc.pvc.Namespace+"."+tc.pvc.Name)
+					}
 				}
 			}
 			if tc.expectedDataDownload != nil {

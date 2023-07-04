@@ -172,7 +172,7 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 	var itemToUpdate []velero.ResourceIdentifier
 
 	if boolptr.IsSetToTrue(backup.Spec.SnapshotMoveData) {
-		operationID = label.GetValidName(string(util.AsyncOperationIDPrefixDataUpload) + string(backup.UID) + "." + string(pvc.UID))
+		operationID = label.GetValidName(string(velerov1api.AsyncOperationIDPrefixDataUpload) + string(backup.UID) + "." + string(pvc.UID))
 		dataUploadLog := p.Log.WithFields(logrus.Fields{
 			"Source PVC":     fmt.Sprintf("%s/%s", pvc.Namespace, pvc.Name),
 			"VolumeSnapshot": fmt.Sprintf("%s/%s", upd.Namespace, upd.Name),
@@ -305,10 +305,10 @@ func newDataUpload(backup *velerov1api.Backup, vs *snapshotv1api.VolumeSnapshot,
 				},
 			},
 			Labels: map[string]string{
-				velerov1api.BackupNameLabel: label.GetValidName(backup.Name),
-				velerov1api.BackupUIDLabel:  string(backup.UID),
-				velerov1api.PVCUIDLabel:     string(pvc.UID),
-				util.AsyncOperationIDLabel:  operationID,
+				velerov1api.BackupNameLabel:       label.GetValidName(backup.Name),
+				velerov1api.BackupUIDLabel:        string(backup.UID),
+				velerov1api.PVCUIDLabel:           string(pvc.UID),
+				velerov1api.AsyncOperationIDLabel: operationID,
 			},
 		},
 		Spec: velerov2alpha1.DataUploadSpec{
@@ -342,7 +342,7 @@ func createDataUpload(ctx context.Context, backup *velerov1api.Backup, veleroCli
 
 func getDataUpload(ctx context.Context, backup *velerov1api.Backup,
 	veleroClient veleroClientSet.Interface, operationID string) (*velerov2alpha1.DataUpload, error) {
-	listOptions := metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=%s", util.AsyncOperationIDLabel, operationID)}
+	listOptions := metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=%s", velerov1api.AsyncOperationIDLabel, operationID)}
 
 	dataUploadList, err := veleroClient.VeleroV2alpha1().DataUploads(backup.Namespace).List(context.Background(), listOptions)
 	if err != nil {
