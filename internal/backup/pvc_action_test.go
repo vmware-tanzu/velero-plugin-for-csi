@@ -86,10 +86,10 @@ func TestExecute(t *testing.T) {
 					GenerateName: "test-",
 					Namespace:    "velero",
 					Labels: map[string]string{
-						velerov1api.BackupNameLabel: "test",
-						velerov1api.BackupUIDLabel:  "",
-						velerov1api.PVCUIDLabel:     "",
-						util.AsyncOperationIDLabel:  "du-.",
+						velerov1api.BackupNameLabel:       "test",
+						velerov1api.BackupUIDLabel:        "",
+						velerov1api.PVCUIDLabel:           "",
+						velerov1api.AsyncOperationIDLabel: "du-.",
 					},
 					OwnerReferences: []metav1.OwnerReference{
 						{
@@ -193,7 +193,7 @@ func TestProgress(t *testing.T) {
 					Namespace: "velero",
 					Name:      "testing",
 					Labels: map[string]string{
-						util.AsyncOperationIDLabel: "testing",
+						velerov1api.AsyncOperationIDLabel: "testing",
 					},
 				},
 				Status: velerov2alpha1.DataUploadStatus{
@@ -268,7 +268,7 @@ func TestCancel(t *testing.T) {
 					Namespace: "velero",
 					Name:      "testing",
 					Labels: map[string]string{
-						util.AsyncOperationIDLabel: "testing",
+						velerov1api.AsyncOperationIDLabel: "testing",
 					},
 				},
 			},
@@ -283,7 +283,7 @@ func TestCancel(t *testing.T) {
 					Namespace: "velero",
 					Name:      "testing",
 					Labels: map[string]string{
-						util.AsyncOperationIDLabel: "testing",
+						velerov1api.AsyncOperationIDLabel: "testing",
 					},
 				},
 				Spec: velerov2alpha1.DataUploadSpec{

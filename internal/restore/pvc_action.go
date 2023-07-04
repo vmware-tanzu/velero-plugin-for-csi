@@ -158,7 +158,7 @@ func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInp
 		if boolptr.IsSetToTrue(backup.Spec.SnapshotMoveData) {
 			logger.Info("Start DataMover restore.")
 
-			operationID = label.GetValidName(string(util.AsyncOperationIDPrefixDataDownload) + string(input.Restore.UID) + "." + string(pvcFromBackup.UID))
+			operationID = label.GetValidName(string(velerov1api.AsyncOperationIDPrefixDataDownload) + string(input.Restore.UID) + "." + string(pvcFromBackup.UID))
 			dataDownload, err := restoreFromDataUploadResult(context.Background(), input.Restore, &pvc,
 				operationID, pvcFromBackup.Namespace, p.Client, p.VeleroClient)
 			if err != nil {
@@ -268,8 +268,10 @@ func (p *PVCRestoreItemAction) AreAdditionalItemsReady(additionalItems []velero.
 
 func getDataUploadResult(ctx context.Context, restore *velerov1api.Restore, pvc *corev1api.PersistentVolumeClaim,
 	sourceNamespace string, kubeClient kubernetes.Interface) (*velerov2alpha1.DataUploadResult, error) {
-	labelSelector := fmt.Sprintf("%s=%s,%s=%s", util.PVCNamespaceNameLabel, sourceNamespace+"."+pvc.Name,
-		velerov1api.RestoreUIDLabel, label.GetValidName(string(restore.UID)))
+	labelSelector := fmt.Sprintf("%s=%s,%s=%s,%s=%s", velerov1api.PVCNamespaceNameLabel, label.GetValidName(sourceNamespace+"."+pvc.Name),
+		velerov1api.RestoreUIDLabel, label.GetValidName(string(restore.UID)),
+		velerov1api.ResourceUsageLabel, label.GetValidName(string(velerov1api.VeleroResourceUsageDataUploadResult)),
+	)
 	cmList, err := kubeClient.CoreV1().ConfigMaps(restore.Namespace).List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
 	if err != nil {
 		return nil, errors.Wrapf(err, "error to get DataUpload result cm with labels %s", labelSelector)
@@ -299,7 +301,7 @@ func getDataUploadResult(ctx context.Context, restore *velerov1api.Restore, pvc 
 
 func getDataDownload(ctx context.Context, namespace string, operationID string, veleroClient veleroClientSet.Interface) (*velerov2alpha1.DataDownload, error) {
 	dataDownloadList, err := veleroClient.VeleroV2alpha1().DataDownloads(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=%s", util.AsyncOperationIDLabel, operationID),
+		LabelSelector: fmt.Sprintf("%s=%s", velerov1api.AsyncOperationIDLabel, operationID),
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "fail to list DataDownload")
@@ -361,9 +363,9 @@ func newDataDownload(restore *velerov1api.Restore, dataUploadResult *velerov2alp
 				},
 			},
 			Labels: map[string]string{
-				velerov1api.RestoreNameLabel: label.GetValidName(restore.Name),
-				velerov1api.RestoreUIDLabel:  string(restore.UID),
-				util.AsyncOperationIDLabel:   operationID,
+				velerov1api.RestoreNameLabel:      label.GetValidName(restore.Name),
+				velerov1api.RestoreUIDLabel:       string(restore.UID),
+				velerov1api.AsyncOperationIDLabel: operationID,
 			},
 		},
 		Spec: velerov2alpha1.DataDownloadSpec{
