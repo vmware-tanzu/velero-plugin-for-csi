@@ -96,6 +96,9 @@ func resetPVCSpec(pvc *corev1api.PersistentVolumeClaim, vsName string) {
 	}
 	pvc.Spec.DataSource = dataSourceRef
 	pvc.Spec.DataSourceRef = dataSourceRef
+
+	// Clean the selector to make the PVC to dynamically allocate PV.
+	pvc.Spec.Selector = new(metav1.LabelSelector)
 }
 
 func setPVCStorageResourceRequest(pvc *corev1api.PersistentVolumeClaim, restoreSize resource.Quantity, log logrus.FieldLogger) {
@@ -167,7 +170,15 @@ func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInp
 			}
 			logger.Infof("DataDownload %s/%s is created successfully.", dataDownload.Namespace, dataDownload.Name)
 		} else {
-			if err := restoreFromVolumeSnapshot(&pvc, p.SnapshotClient, logger); err != nil {
+			volumeSnapshotName, ok := pvc.Annotations[util.VolumeSnapshotLabel]
+			if !ok {
+				logger.Info("Skipping PVCRestoreItemAction for PVC , PVC does not have a CSI volumesnapshot.")
+				// Make no change in the input PVC.
+				return &velero.RestoreItemActionExecuteOutput{
+					UpdatedItem: input.Item,
+				}, nil
+			}
+			if err := restoreFromVolumeSnapshot(&pvc, p.SnapshotClient, volumeSnapshotName, logger); err != nil {
 				logger.Errorf("Failed to restore PVC from VolumeSnapshot.")
 				return nil, errors.WithStack(err)
 			}
@@ -385,13 +396,7 @@ func newDataDownload(restore *velerov1api.Restore, dataUploadResult *velerov2alp
 }
 
 func restoreFromVolumeSnapshot(pvc *corev1api.PersistentVolumeClaim, snapClient snapshotterClientSet.Interface,
-	logger logrus.FieldLogger) error {
-	volumeSnapshotName, ok := pvc.Annotations[util.VolumeSnapshotLabel]
-	if !ok {
-		logger.Info("Skipping PVCRestoreItemAction for PVC , PVC does not have a CSI volumesnapshot.")
-		return nil
-	}
-
+	volumeSnapshotName string, logger logrus.FieldLogger) error {
 	vs, err := snapClient.SnapshotV1().VolumeSnapshots(pvc.Namespace).Get(context.TODO(), volumeSnapshotName, metav1.GetOptions{})
 	if err != nil {
 		return errors.Wrapf(err, fmt.Sprintf("Failed to get Volumesnapshot %s/%s to restore PVC %s/%s", pvc.Namespace, volumeSnapshotName, pvc.Namespace, pvc.Name))
