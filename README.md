@@ -35,6 +35,57 @@ Below is a listing of plugin versions and respective Velero versions that are co
 | v0.3.0          | v1.9.x         |
 | v0.2.0          | v1.7.x, v1.8.x |
 
+### Choosing VolumeSnapshotClass For snapshotting (>=0.6.0)
+#### Default Behavior
+You can simply create a VolumeSnapshotClass for a particular driver and put a label on it to indicate that it is the default VolumeSnapshotClass for that driver.  For example, if you want to create a VolumeSnapshotClass for the CSI driver `disk.csi.cloud.com` for taking snapshots of disks created with `disk.csi.cloud.com` based storage classes, you can create a VolumeSnapshotClass like this:
+```yaml
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: test-snapclass
+  labels:
+    velero.io/csi-volumesnapshot-class: "true"
+driver: disk.csi.cloud.com
+```
+
+> Note: For each driver type, there should only be 1 VolumeSnapshotClass with the label `velero.io/csi-volumesnapshot-class: "true"`.
+
+#### Choose VolumeSnapshotClass for a particular Backup Or Schedule
+If you want to use a particular VolumeSnapshotClass for a particular backup or schedule, you can add a annotation to the backup or schedule to indicate which VolumeSnapshotClass to use.  For example, if you want to use the VolumeSnapshotClass `test-snapclass` for a particular backup for snapshotting PVCs of `disk.csi.cloud.com`, you can create a backup like this:
+```yaml
+apiVersion: velero.io/v1
+kind: Backup
+metadata:
+  name: test-backup
+  annotations:
+    velero.io/csi-volumesnapshot-class/disk.csi.cloud.com: "test-snapclass"
+spec:
+    includedNamespaces:
+    - default
+```
+
+> Note: Please ensure all your annotations are in lowercase. And follow the following format: `velero.io/csi-volumesnapshot-class/<driver name> = <VolumeSnapshotClass Name>`
+
+#### Choosing VolumeSnapshotClass for a particular PVC
+If you want to use a particular VolumeSnapshotClass for a particular PVC, you can add a annotation to the PVC to indicate which VolumeSnapshotClass to use. This overrides any annotation added to backup or schedule. For example, if you want to use the VolumeSnapshotClass `test-snapclass` for a particular PVC, you can create a PVC like this:
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-pvc
+  annotations:
+    velero.io/csi-volumesnapshot-class: "test-snapclass"
+spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+        requests:
+        storage: 1Gi
+    storageClassName: disk.csi.cloud.com
+```
+
+> Note: Please ensure all your annotations are in lowercase. And follow the following format: `velero.io/csi-volumesnapshot-class = <VolumeSnapshotClass Name>`
+
 ## Filing issues
 
 If you would like to file a GitHub issue for the plugin, please open the issue on the [core Velero repo][103]
