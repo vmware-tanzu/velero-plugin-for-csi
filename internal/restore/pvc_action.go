@@ -170,7 +170,7 @@ func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInp
 			}
 			logger.Infof("DataDownload %s/%s is created successfully.", dataDownload.Namespace, dataDownload.Name)
 		} else {
-			volumeSnapshotName, ok := pvc.Annotations[util.VolumeSnapshotLabel]
+			volumeSnapshotName, ok := pvcFromBackup.Annotations[util.VolumeSnapshotLabel]
 			if !ok {
 				logger.Info("Skipping PVCRestoreItemAction for PVC , PVC does not have a CSI volumesnapshot.")
 				// Make no change in the input PVC.

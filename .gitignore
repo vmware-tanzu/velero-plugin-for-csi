@@ -49,3 +49,4 @@ site/vendor
 .vs
 
 _tiltbuild
+coverage.out
