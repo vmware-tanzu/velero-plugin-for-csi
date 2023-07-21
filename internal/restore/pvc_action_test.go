@@ -564,7 +564,7 @@ func TestExecute(t *testing.T) {
 				DataSourceRef(&corev1api.TypedLocalObjectReference{APIGroup: &snapshotv1api.SchemeGroupVersion.Group, Kind: util.VolumeSnapshotKindName, Name: "testVS"}).
 				Result(),
 			vs:          builder.ForVolumeSnapshot("velero", "testVS").ObjectMeta(builder.WithAnnotations(util.VolumeSnapshotRestoreSize, "10Gi")).Result(),
-			expectedPVC: builder.ForPersistentVolumeClaim("velero", "testPVC").ObjectMeta(builder.WithAnnotations("velero.io/volume-snapshot-name", "testVS")).Result(),
+			expectedPVC: builder.ForPersistentVolumeClaim("velero", "testPVC").Result(),
 		},
 		{
 			name:        "Restore from VolumeSnapshot without volume-snapshot-name annotation",
