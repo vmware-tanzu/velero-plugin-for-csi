@@ -99,7 +99,11 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 	}
 	if pv.Spec.PersistentVolumeSource.CSI == nil {
 		p.Log.Infof("Skipping PVC %s/%s, associated PV %s is not a CSI volume", pvc.Namespace, pvc.Name, pv.Name)
-		return item, nil, "", nil, nil
+		util.AddAnnotations(&pvc.ObjectMeta, map[string]string{
+			util.SkippedNoCSIPVAnnotation: "true",
+		})
+		data, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&pvc)
+		return &unstructured.Unstructured{Object: data}, nil, "", nil, err
 	}
 
 	// Do nothing if FS uploader is used to backup this PV
