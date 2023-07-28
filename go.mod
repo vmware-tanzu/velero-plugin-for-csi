@@ -10,7 +10,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.2
 	// TODO: need to use velero v1.12.0 after releasing.
-	github.com/vmware-tanzu/velero v0.0.0-20230630063030-84eca51d22c7
+	github.com/vmware-tanzu/velero v0.0.0-20230727074327-a6d79fc272a2
 	k8s.io/api v0.25.6
 	k8s.io/apimachinery v0.25.6
 	k8s.io/client-go v0.25.6

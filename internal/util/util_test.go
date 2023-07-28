@@ -23,9 +23,9 @@ import (
 	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	snapshotFake "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
 	"github.com/sirupsen/logrus"
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -178,7 +178,6 @@ func TestGetPodsUsingPVC(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "pod1",
 				Namespace: "default",
-        
 			},
 			Spec: v1.PodSpec{
 				Volumes: []v1.Volume{
@@ -631,7 +630,7 @@ func TestGetVolumeSnapshotClass(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "foo",
 			Annotations: map[string]string{
-				"velero.io/csi-volumesnapshot-class/foo.csi.k8s.io": "foowithoutlabel",
+				"velero.io/csi-volumesnapshot-class_foo.csi.k8s.io": "foowithoutlabel",
 			},
 		},
 		Spec: velerov1api.BackupSpec{
@@ -642,7 +641,7 @@ func TestGetVolumeSnapshotClass(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "foo2",
 			Annotations: map[string]string{
-				"velero.io/csi-volumesnapshot-class/foo.csi.k8s.io": "foo2",
+				"velero.io/csi-volumesnapshot-class_foo.csi.k8s.io": "foo2",
 			},
 		},
 		Spec: velerov1api.BackupSpec{
@@ -654,7 +653,7 @@ func TestGetVolumeSnapshotClass(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "bar",
 			Annotations: map[string]string{
-				"velero.io/csi-volumesnapshot-class/bar.csi.k8s.io": "bar2",
+				"velero.io/csi-volumesnapshot-class_bar.csi.k8s.io": "bar2",
 			},
 		},
 		Spec: velerov1api.BackupSpec{
