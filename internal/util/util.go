@@ -106,7 +106,7 @@ func IsPVCDefaultToFSBackup(pvcNamespace, pvcName string, podClient corev1client
 	}
 
 	for _, p := range pods {
-		vols := podvolume.GetVolumesByPod(&p, defaultVolumesToFsBackup)
+		vols, _ := podvolume.GetVolumesByPod(&p, defaultVolumesToFsBackup)
 		if len(vols) > 0 {
 			volName, err := GetPodVolumeNameForPVC(p, pvcName)
 			if err != nil {
@@ -171,7 +171,7 @@ func GetVolumeSnapshotClassFromPVCAnnotationsForDriver(pvc *corev1api.Persistent
 
 // GetVolumeSnapshotClassFromAnnotationsForDriver returns a VolumeSnapshotClass for the supplied volume provisioner/ driver name from the annotation of the backup
 func GetVolumeSnapshotClassFromBackupAnnotationsForDriver(backup *velerov1api.Backup, provisioner string, snapshotClasses *snapshotv1api.VolumeSnapshotClassList) (*snapshotv1api.VolumeSnapshotClass, error) {
-	annotationKey := fmt.Sprintf("%s/%s", VolumeSnapshotClassDriverBackupAnnotationPrefix, strings.ToLower(provisioner))
+	annotationKey := fmt.Sprintf("%s_%s", VolumeSnapshotClassDriverBackupAnnotationPrefix, strings.ToLower(provisioner))
 	snapshotClassName, ok := backup.ObjectMeta.Annotations[annotationKey]
 	if !ok {
 		return nil, nil
