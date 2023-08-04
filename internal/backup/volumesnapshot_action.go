@@ -184,14 +184,20 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 		p.Log.Debugf("%s: %s", ai.GroupResource.String(), ai.Name)
 	}
 
-	// The operationID is of the form <namespace>/<volumesnapshot-name>/<started-time>
-	operationID := vs.Namespace + "/" + vs.Name + "/" + time.Now().Format(time.RFC3339)
-	itemToUpdate := []velero.ResourceIdentifier{
-		{
-			GroupResource: kuberesource.VolumeSnapshots,
-			Namespace:     vs.Namespace,
-			Name:          vs.Name,
-		},
+	operationID := ""
+	var itemToUpdate []velero.ResourceIdentifier
+
+	// Only return Async operation for VSC created for this backup.
+	if backupOngoing {
+		// The operationID is of the form <namespace>/<volumesnapshot-name>/<started-time>
+		operationID = vs.Namespace + "/" + vs.Name + "/" + time.Now().Format(time.RFC3339)
+		itemToUpdate = []velero.ResourceIdentifier{
+			{
+				GroupResource: kuberesource.VolumeSnapshots,
+				Namespace:     vs.Namespace,
+				Name:          vs.Name,
+			},
+		}
 	}
 
 	return &unstructured.Unstructured{Object: vsMap}, additionalItems, operationID, itemToUpdate, nil

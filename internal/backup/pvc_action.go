@@ -99,6 +99,7 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 	}
 	if pv.Spec.PersistentVolumeSource.CSI == nil {
 		p.Log.Infof("Skipping PVC %s/%s, associated PV %s is not a CSI volume", pvc.Namespace, pvc.Name, pv.Name)
+
 		util.AddAnnotations(&pvc.ObjectMeta, map[string]string{
 			util.SkippedNoCSIPVAnnotation: "true",
 		})
@@ -168,9 +169,6 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 	annotations := labels
 	annotations[util.MustIncludeAdditionalItemAnnotation] = "true"
 
-	util.AddAnnotations(&pvc.ObjectMeta, annotations)
-	util.AddLabels(&pvc.ObjectMeta, labels)
-
 	var additionalItems []velero.ResourceIdentifier
 	operationID := ""
 	var itemToUpdate []velero.ResourceIdentifier
@@ -203,6 +201,9 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 					Name:      dataUpload.Name,
 				},
 			}
+			// Set the DataUploadNameLabel, which is used for restore to let CSI plugin check whether
+			// it should handle the volume. If volume is CSI migration, PVC doesn't have the annotation.
+			annotations[util.DataUploadNameAnnotation] = dataUpload.Namespace + "/" + dataUpload.Name
 
 			dataUploadLog.Info("DataUpload is submitted successfully.")
 		}
@@ -215,6 +216,9 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 			},
 		}
 	}
+
+	util.AddAnnotations(&pvc.ObjectMeta, annotations)
+	util.AddLabels(&pvc.ObjectMeta, labels)
 
 	p.Log.Infof("Returning from PVCBackupItemAction with %d additionalItems to backup", len(additionalItems))
 	for _, ai := range additionalItems {

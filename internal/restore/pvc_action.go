@@ -143,7 +143,8 @@ func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInp
 	operationID := ""
 
 	// remove the volumesnapshot name annotation as well
-	removePVCAnnotations(&pvc, []string{util.VolumeSnapshotLabel})
+	// clean the DataUploadNameLabel for snapshot data mover case.
+	removePVCAnnotations(&pvc, []string{util.VolumeSnapshotLabel, util.DataUploadNameAnnotation})
 
 	if boolptr.IsSetToFalse(input.Restore.Spec.RestorePVs) {
 		logger.Info("Restore did not request for PVs to be restored from snapshot")
@@ -160,6 +161,16 @@ func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInp
 
 		if boolptr.IsSetToTrue(backup.Spec.SnapshotMoveData) {
 			logger.Info("Start DataMover restore.")
+
+			// If PVC doesn't have a DataUploadNameLabel, which should be created
+			// during backup, then CSI cannot handle the volume during to restore,
+			// so return early to let Velero tries to fall back to Velero native snapshot.
+			if _, ok := pvcFromBackup.Annotations[util.DataUploadNameAnnotation]; !ok {
+				logger.Warnf("PVC doesn't have a DataUpload for data mover. Return.")
+				return &velero.RestoreItemActionExecuteOutput{
+					UpdatedItem: input.Item,
+				}, nil
+			}
 
 			operationID = label.GetValidName(string(velerov1api.AsyncOperationIDPrefixDataDownload) + string(input.Restore.UID) + "." + string(pvcFromBackup.UID))
 			dataDownload, err := restoreFromDataUploadResult(context.Background(), input.Restore, &pvc,
