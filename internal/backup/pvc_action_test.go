@@ -56,6 +56,7 @@ func TestExecute(t *testing.T) {
 		expectedErr        error
 		expectedBackup     *velerov1api.Backup
 		expectedDataUpload *velerov2alpha1.DataUpload
+		expectedPVC        *corev1.PersistentVolumeClaim
 	}{
 		{
 			name:        "Skip PVC handling if SnapshotVolume set to false",
@@ -113,6 +114,21 @@ func TestExecute(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:        "",
+			backup:      builder.ForBackup("velero", "test").SnapshotMoveData(true).Result(),
+			pvc:         builder.ForPersistentVolumeClaim("velero", "testPVC").VolumeName("testPV").StorageClass("testSC").Phase(corev1.ClaimBound).Result(),
+			pv:          builder.ForPersistentVolume("testPV").CSI("hostpath", "testVolume").Result(),
+			sc:          builder.ForStorageClass("testSC").Provisioner("hostpath").Result(),
+			vs:          builder.ForVolumeSnapshot("velero", "testVS").Result(),
+			vsClass:     builder.ForVolumeSnapshotClass("tescVSClass").Driver("hostpath").ObjectMeta(builder.WithLabels(util.VolumeSnapshotClassSelectorLabel, "")).Result(),
+			operationID: ".",
+			expectedErr: nil,
+			expectedPVC: builder.ForPersistentVolumeClaim("velero", "testPVC").
+				ObjectMeta(builder.WithAnnotations(util.MustIncludeAdditionalItemAnnotation, "true", velerov1api.BackupNameLabel, "test", util.DataUploadNameAnnotation, "velero/", util.VolumeSnapshotLabel, ""),
+					builder.WithLabels(util.MustIncludeAdditionalItemAnnotation, "true", velerov1api.BackupNameLabel, "test", util.DataUploadNameAnnotation, "velero/", util.VolumeSnapshotLabel, "")).
+				VolumeName("testPV").StorageClass("testSC").Phase(corev1.ClaimBound).Result(),
+		},
 	}
 
 	for _, tc := range tests {
@@ -150,7 +166,7 @@ func TestExecute(t *testing.T) {
 			pvcMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&tc.pvc)
 			require.NoError(t, err)
 
-			_, _, _, _, err = pvcBIA.Execute(&unstructured.Unstructured{Object: pvcMap}, tc.backup)
+			resultUnstructed, _, _, _, err := pvcBIA.Execute(&unstructured.Unstructured{Object: pvcMap}, tc.backup)
 			if tc.expectedErr != nil {
 				require.Equal(t, err, tc.expectedErr)
 			}
@@ -160,6 +176,12 @@ func TestExecute(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, 1, len(dataUploadList.Items))
 				require.Equal(t, *tc.expectedDataUpload, dataUploadList.Items[0])
+			}
+
+			if tc.expectedPVC != nil {
+				resultPVC := new(corev1.PersistentVolumeClaim)
+				runtime.DefaultUnstructuredConverter.FromUnstructured(resultUnstructed.UnstructuredContent(), resultPVC)
+				require.Equal(t, *tc.expectedPVC, *resultPVC)
 			}
 		})
 	}

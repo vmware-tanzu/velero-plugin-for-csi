@@ -49,4 +49,7 @@ const (
 
 	// DynamicPVRestoreLabel is the label key for dynamic PV restore
 	DynamicPVRestoreLabel = "velero.io/dynamic-pv-restore"
+
+	// DataUploadNameAnnotation is the label key for the DataUpload name
+	DataUploadNameAnnotation = "velero.io/data-upload-name"
 )

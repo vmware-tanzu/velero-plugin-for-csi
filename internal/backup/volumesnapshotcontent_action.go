@@ -33,6 +33,7 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/kuberesource"
+	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	biav2 "github.com/vmware-tanzu/velero/pkg/plugin/velero/backupitemaction/v2"
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
@@ -90,13 +91,21 @@ func (p *VolumeSnapshotContentBackupItemAction) Execute(item runtime.Unstructure
 		return nil, nil, "", nil, errors.WithStack(err)
 	}
 
-	// The operationID is of the form <volumesnapshotcontent-name>/<started-time>
-	operationID := snapCont.Name + "/" + time.Now().Format(time.RFC3339)
-	itemToUpdate := []velero.ResourceIdentifier{
-		{
-			GroupResource: kuberesource.VolumeSnapshotContents,
-			Name:          snapCont.Name,
-		},
+	backupOnGoing := snapCont.GetLabels()[velerov1api.BackupNameLabel] == label.GetValidName(backup.Name)
+	operationID := ""
+	var itemToUpdate []velero.ResourceIdentifier
+
+	// Only return Async operation for VSC created for this backup.
+	if backupOnGoing {
+		// The operationID is of the form <volumesnapshotcontent-name>/<started-time>
+		operationID = snapCont.Name + "/" + time.Now().Format(time.RFC3339)
+		itemToUpdate = []velero.ResourceIdentifier{
+			{
+				GroupResource: kuberesource.VolumeSnapshotContents,
+				Name:          snapCont.Name,
+			},
+		}
+
 	}
 
 	p.Log.Infof("Returning from VolumeSnapshotContentBackupItemAction with %d additionalItems to backup", len(additionalItems))
