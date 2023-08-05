@@ -534,6 +534,7 @@ func TestExecute(t *testing.T) {
 		expectedErr          string
 		expectedDataDownload *velerov2alpha1.DataDownload
 		expectedPVC          *corev1api.PersistentVolumeClaim
+		preCreatePVC         bool
 	}{
 		{
 			name:        "Don't restore PV",
@@ -608,6 +609,13 @@ func TestExecute(t *testing.T) {
 			restore: builder.ForRestore("migre209d0da-49c7-45ba-8d5a-3e59fd591ec1", "testRestore").Backup("testBackup").ObjectMeta(builder.WithUID("uid")).Result(),
 			pvc:     builder.ForPersistentVolumeClaim("migre209d0da-49c7-45ba-8d5a-3e59fd591ec1", "kibishii-data-kibishii-deployment-0").ObjectMeta(builder.WithAnnotations(util.VolumeSnapshotRestoreSize, "10Gi")).Result(),
 		},
+		{
+			name:         "Restore a PVC that already exists.",
+			backup:       builder.ForBackup("velero", "testBackup").SnapshotMoveData(true).Result(),
+			restore:      builder.ForRestore("velero", "testRestore").Backup("testBackup").ObjectMeta(builder.WithUID("uid")).Result(),
+			pvc:          builder.ForPersistentVolumeClaim("velero", "testPVC").ObjectMeta(builder.WithAnnotations(util.VolumeSnapshotRestoreSize, "10Gi", util.DataUploadNameAnnotation, "velero/")).Result(),
+			preCreatePVC: true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -627,6 +635,11 @@ func TestExecute(t *testing.T) {
 				input.Item = &unstructured.Unstructured{Object: pvcMap}
 				input.ItemFromBackup = &unstructured.Unstructured{Object: pvcMap}
 				input.Restore = tc.restore
+			}
+
+			if tc.preCreatePVC {
+				_, err := pvcRIA.Client.CoreV1().PersistentVolumeClaims(tc.pvc.Namespace).Create(context.Background(), tc.pvc, metav1.CreateOptions{})
+				require.NoError(t, err)
 			}
 
 			if tc.backup != nil {

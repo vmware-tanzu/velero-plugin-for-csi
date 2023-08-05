@@ -131,6 +131,13 @@ func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInp
 	})
 	logger.Info("Starting PVCRestoreItemAction for PVC")
 
+	if _, err := p.Client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.Background(), pvc.Name, metav1.GetOptions{}); err == nil {
+		logger.Warnf("PVC already exists. Skip restore this PVC.")
+		return &velero.RestoreItemActionExecuteOutput{
+			UpdatedItem: input.Item,
+		}, nil
+	}
+
 	removePVCAnnotations(&pvc,
 		[]string{AnnBindCompleted, AnnBoundByController, AnnStorageProvisioner, AnnBetaStorageProvisioner, AnnSelectedNode})
 
