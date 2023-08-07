@@ -21,12 +21,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
-
 	jsonpatch "github.com/evanphx/json-patch"
 	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	snapshotterClientSet "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	corev1api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -166,8 +165,10 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 		velerov1api.BackupNameLabel: backup.Name,
 	}
 
-	annotations := labels
-	annotations[util.MustIncludeAdditionalItemAnnotation] = "true"
+	annotations := map[string]string{
+		util.VolumeSnapshotLabel:                 upd.Name,
+		util.MustIncludeAdditionalItemAnnotation: "true",
+	}
 
 	var additionalItems []velero.ResourceIdentifier
 	operationID := ""

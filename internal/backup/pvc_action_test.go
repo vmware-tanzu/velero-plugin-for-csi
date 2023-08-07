@@ -115,7 +115,7 @@ func TestExecute(t *testing.T) {
 			},
 		},
 		{
-			name:        "",
+			name:        "Verify PVC is modified as expected",
 			backup:      builder.ForBackup("velero", "test").SnapshotMoveData(true).Result(),
 			pvc:         builder.ForPersistentVolumeClaim("velero", "testPVC").VolumeName("testPV").StorageClass("testSC").Phase(corev1.ClaimBound).Result(),
 			pv:          builder.ForPersistentVolume("testPV").CSI("hostpath", "testVolume").Result(),
@@ -125,8 +125,8 @@ func TestExecute(t *testing.T) {
 			operationID: ".",
 			expectedErr: nil,
 			expectedPVC: builder.ForPersistentVolumeClaim("velero", "testPVC").
-				ObjectMeta(builder.WithAnnotations(util.MustIncludeAdditionalItemAnnotation, "true", velerov1api.BackupNameLabel, "test", util.DataUploadNameAnnotation, "velero/", util.VolumeSnapshotLabel, ""),
-					builder.WithLabels(util.MustIncludeAdditionalItemAnnotation, "true", velerov1api.BackupNameLabel, "test", util.DataUploadNameAnnotation, "velero/", util.VolumeSnapshotLabel, "")).
+				ObjectMeta(builder.WithAnnotations(util.MustIncludeAdditionalItemAnnotation, "true", util.DataUploadNameAnnotation, "velero/", util.VolumeSnapshotLabel, ""),
+					builder.WithLabels(velerov1api.BackupNameLabel, "test", util.VolumeSnapshotLabel, "")).
 				VolumeName("testPV").StorageClass("testSC").Phase(corev1.ClaimBound).Result(),
 		},
 	}
