@@ -131,7 +131,8 @@ func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInp
 	})
 	logger.Info("Starting PVCRestoreItemAction for PVC")
 
-	if _, err := p.Client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.Background(), pvc.Name, metav1.GetOptions{}); err == nil {
+	// If PVC already exists, returns early.
+	if p.isResourceExist(pvc, *input.Restore) {
 		logger.Warnf("PVC already exists. Skip restore this PVC.")
 		return &velero.RestoreItemActionExecuteOutput{
 			UpdatedItem: input.Item,
@@ -462,4 +463,16 @@ func restoreFromDataUploadResult(ctx context.Context, restore *velerov1api.Resto
 	}
 
 	return dataDownload, nil
+}
+
+func (p *PVCRestoreItemAction) isResourceExist(pvc corev1api.PersistentVolumeClaim, restore velerov1api.Restore) bool {
+	// get target namespace to restore into, if different from source namespace
+	targetNamespace := pvc.Namespace
+	if target, ok := restore.Spec.NamespaceMapping[pvc.Namespace]; ok {
+		targetNamespace = target
+	}
+	if _, err := p.Client.CoreV1().PersistentVolumeClaims(targetNamespace).Get(context.Background(), pvc.Name, metav1.GetOptions{}); err == nil {
+		return true
+	}
+	return false
 }

@@ -616,6 +616,13 @@ func TestExecute(t *testing.T) {
 			pvc:          builder.ForPersistentVolumeClaim("velero", "testPVC").ObjectMeta(builder.WithAnnotations(util.VolumeSnapshotRestoreSize, "10Gi", util.DataUploadNameAnnotation, "velero/")).Result(),
 			preCreatePVC: true,
 		},
+		{
+			name:         "Restore a PVC that already exists in the mapping namespace",
+			backup:       builder.ForBackup("velero", "testBackup").SnapshotMoveData(true).Result(),
+			restore:      builder.ForRestore("velero", "testRestore").Backup("testBackup").NamespaceMappings("velero", "restore").ObjectMeta(builder.WithUID("uid")).Result(),
+			pvc:          builder.ForPersistentVolumeClaim("restore", "testPVC").ObjectMeta(builder.WithAnnotations(util.VolumeSnapshotRestoreSize, "10Gi", util.DataUploadNameAnnotation, "velero/")).Result(),
+			preCreatePVC: true,
+		},
 	}
 
 	for _, tc := range tests {
