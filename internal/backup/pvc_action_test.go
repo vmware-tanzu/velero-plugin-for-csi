@@ -23,6 +23,7 @@ import (
 	"time"
 
 	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	v1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	snapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -31,6 +32,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
@@ -40,6 +42,7 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/builder"
 	velerofake "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned/fake"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
+	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
 
 func TestExecute(t *testing.T) {
@@ -50,7 +53,6 @@ func TestExecute(t *testing.T) {
 		pvc                *corev1.PersistentVolumeClaim
 		pv                 *corev1.PersistentVolume
 		sc                 *storagev1.StorageClass
-		vs                 *snapshotv1api.VolumeSnapshot
 		vsClass            *snapshotv1api.VolumeSnapshotClass
 		operationID        string
 		expectedErr        error
@@ -74,7 +76,6 @@ func TestExecute(t *testing.T) {
 			pvc:         builder.ForPersistentVolumeClaim("velero", "testPVC").VolumeName("testPV").StorageClass("testSC").Phase(corev1.ClaimBound).Result(),
 			pv:          builder.ForPersistentVolume("testPV").CSI("hostpath", "testVolume").Result(),
 			sc:          builder.ForStorageClass("testSC").Provisioner("hostpath").Result(),
-			vs:          builder.ForVolumeSnapshot("velero", "testVS").Result(),
 			vsClass:     builder.ForVolumeSnapshotClass("tescVSClass").Driver("hostpath").ObjectMeta(builder.WithLabels(util.VolumeSnapshotClassSelectorLabel, "")).Result(),
 			operationID: ".",
 			expectedErr: nil,
@@ -120,7 +121,6 @@ func TestExecute(t *testing.T) {
 			pvc:         builder.ForPersistentVolumeClaim("velero", "testPVC").VolumeName("testPV").StorageClass("testSC").Phase(corev1.ClaimBound).Result(),
 			pv:          builder.ForPersistentVolume("testPV").CSI("hostpath", "testVolume").Result(),
 			sc:          builder.ForStorageClass("testSC").Provisioner("hostpath").Result(),
-			vs:          builder.ForVolumeSnapshot("velero", "testVS").Result(),
 			vsClass:     builder.ForVolumeSnapshotClass("tescVSClass").Driver("hostpath").ObjectMeta(builder.WithLabels(util.VolumeSnapshotClassSelectorLabel, "")).Result(),
 			operationID: ".",
 			expectedErr: nil,
@@ -165,6 +165,31 @@ func TestExecute(t *testing.T) {
 
 			pvcMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&tc.pvc)
 			require.NoError(t, err)
+
+			if boolptr.IsSetToTrue(tc.backup.Spec.SnapshotMoveData) == true {
+				go func() {
+					var vsList *v1.VolumeSnapshotList
+					err := wait.PollImmediate(1*time.Second, 10*time.Second, func() (bool, error) {
+						vsList, err = pvcBIA.SnapshotClient.SnapshotV1().VolumeSnapshots(tc.pvc.Namespace).List(context.Background(), metav1.ListOptions{})
+						require.NoError(t, err)
+						if err != nil || len(vsList.Items) == 0 {
+							return false, nil
+						}
+						return true, nil
+					})
+
+					require.NoError(t, err)
+					vscName := "testVSC"
+					vsList.Items[0].Status = &v1.VolumeSnapshotStatus{BoundVolumeSnapshotContentName: &vscName}
+					_, err = pvcBIA.SnapshotClient.SnapshotV1().VolumeSnapshots(vsList.Items[0].Namespace).UpdateStatus(context.Background(), &vsList.Items[0], metav1.UpdateOptions{})
+					require.NoError(t, err)
+
+					handleName := "testHandle"
+					vsc := builder.ForVolumeSnapshotContent("testVSC").Status(&snapshotv1api.VolumeSnapshotContentStatus{SnapshotHandle: &handleName}).Result()
+					_, err = pvcBIA.SnapshotClient.SnapshotV1().VolumeSnapshotContents().Create(context.Background(), vsc, metav1.CreateOptions{})
+					require.NoError(t, err)
+				}()
+			}
 
 			resultUnstructed, _, _, _, err := pvcBIA.Execute(&unstructured.Unstructured{Object: pvcMap}, tc.backup)
 			if tc.expectedErr != nil {

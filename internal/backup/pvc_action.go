@@ -183,6 +183,16 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 			"Backup":         backup.Name,
 		})
 
+		// Wait until VS associated VSC snapshot handle created before returning with
+		// the Async operation for data mover.
+		_, err := util.GetVolumeSnapshotContentForVolumeSnapshot(upd, p.SnapshotClient.SnapshotV1(),
+			dataUploadLog, true, backup.Spec.CSISnapshotTimeout.Duration)
+		if err != nil {
+			dataUploadLog.Errorf("Fail to wait VolumeSnapshot snapshot handle created: %s", err.Error())
+			util.CleanupVolumeSnapshot(upd, p.SnapshotClient.SnapshotV1(), p.Log)
+			return nil, nil, "", nil, errors.WithStack(err)
+		}
+
 		dataUploadLog.Info("Starting data upload of backup")
 
 		dataUpload, err := createDataUpload(context.Background(), backup, p.VeleroClient, upd, &pvc, operationID)

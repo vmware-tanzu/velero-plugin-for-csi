@@ -243,10 +243,11 @@ func (p *VolumeSnapshotBackupItemAction) Progress(operationID string, backup *ve
 	if boolptr.IsSetToTrue(vs.Status.ReadyToUse) {
 		progress.Completed = true
 	} else if vs.Status.Error != nil {
-		progress.Completed = true
+		errorMessage := ""
 		if vs.Status.Error.Message != nil {
-			progress.Err = *vs.Status.Error.Message
+			errorMessage = *vs.Status.Error.Message
 		}
+		p.Log.Warnf("VolumeSnapshot has a temporary error %s. Snapshot controller will retry later.", errorMessage)
 	}
 
 	return progress, nil
