@@ -1,0 +1,16 @@
+### All Changes
+
+  * Annotate the PVC for non CSI PV. (#192, @reasonerjt)
+  * Add AreAdditionalItemsReady method for RIA v2. (#185, @blackpiglet)
+  * Add snapshot data mover logic in PVC RIA v2. (#184, @blackpiglet)
+  * Add DataUploadResult ConfigMap retrieving and deleting code. (#183, @blackpiglet)
+  * Support DataUpload CR handling in backup (#181, @blackpiglet)
+  * Remove VS name annotation from PVC during CSI restore (#180, @shubham-pampattiwar)
+  * Add support for Multiple VolumeSnapshotClasses (#178, @anshulahuja98)
+  * Make the BIA in CSI plugin adopt v2. (#177, @blackpiglet)
+  * Copy PVC labels to it's VolumeSnapshot (#176, @anshulahuja98)
+  * Use CSISnapshotTimeout to set the snapshot timeout (#175, @dzaninovic)
+  * Cleanup CSI Snapshots post Polling of VSC times out in CSI Plugin. (#174, @Shashank1306s)
+  * Update the logic to get VSClass for CSI snapshot (#173, @reasonerjt)
+  * Unify CSI plugin build process and bump golang version. (#165, @blackpiglet)
+  * Replace busybox with internal copy binary (#161, @blackpiglet)
