@@ -1560,16 +1560,11 @@ func TestIsVolumeSnapshotExists(t *testing.T) {
 			expected: false,
 			vs:       vsNotExists,
 		},
-		{
-			name:     "should not find a nil VolumeSnapshot object",
-			expected: false,
-			vs:       nil,
-		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := IsVolumeSnapshotExists(tc.vs, fakeClient.SnapshotV1())
+			actual := IsVolumeSnapshotExists(tc.vs.Namespace, tc.vs.Name, fakeClient.SnapshotV1())
 			assert.Equal(t, tc.expected, actual)
 		})
 	}
