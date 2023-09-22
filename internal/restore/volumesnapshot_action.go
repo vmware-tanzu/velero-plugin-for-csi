@@ -76,8 +76,10 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 
 	// If cross-namespace restore is configured, change the namespace
 	// for VolumeSnapshot object to be restored
-	if val, ok := input.Restore.Spec.NamespaceMapping[vs.GetNamespace()]; ok {
-		vs.SetNamespace(val)
+	newNamespace, ok := input.Restore.Spec.NamespaceMapping[vs.GetNamespace()]
+	if !ok {
+		// Use original namespace
+		newNamespace = vs.Namespace
 	}
 
 	_, snapClient, err := util.GetClients()
@@ -85,7 +87,7 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 		return nil, errors.WithStack(err)
 	}
 
-	if !util.IsVolumeSnapshotExists(&vs, snapClient.SnapshotV1()) {
+	if !util.IsVolumeSnapshotExists(newNamespace, vs.Name, snapClient.SnapshotV1()) {
 		snapHandle, exists := vs.Annotations[util.VolumeSnapshotHandleAnnotation]
 		if !exists {
 			return nil, errors.Errorf("Volumesnapshot %s/%s does not have a %s annotation", vs.Namespace, vs.Name, util.VolumeSnapshotHandleAnnotation)
@@ -97,7 +99,7 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 		}
 
 		p.Log.Debugf("Set VolumeSnapshotContent %s/%s DeletionPolicy to Retain to make sure VS deletion in namespace will not delete Snapshot on cloud provider.",
-			vs.Namespace, vs.Name)
+			newNamespace, vs.Name)
 
 		// TODO: generated name will be like velero-velero-something. Fix that.
 		vsc := snapshotv1api.VolumeSnapshotContent{
@@ -112,7 +114,7 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 				Driver:         csiDriverName,
 				VolumeSnapshotRef: core_v1.ObjectReference{
 					Kind:      util.VolumeSnapshotKindName,
-					Namespace: vs.Namespace,
+					Namespace: newNamespace,
 					Name:      vs.Name,
 				},
 				Source: snapshotv1api.VolumeSnapshotContentSource{
@@ -131,7 +133,7 @@ func (p *VolumeSnapshotRestoreItemAction) Execute(input *velero.RestoreItemActio
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to create volumesnapshotcontents %s", vsc.GenerateName)
 		}
-		p.Log.Infof("Created VolumesnapshotContents %s with static binding to volumesnapshot %s/%s", vscupd, vs.Namespace, vs.Name)
+		p.Log.Infof("Created VolumesnapshotContents %s with static binding to volumesnapshot %s/%s", vscupd, newNamespace, vs.Name)
 
 		// Reset Spec to convert the volumesnapshot from using the dyanamic volumesnapshotcontent to the static one.
 		resetVolumeSnapshotSpecForRestore(&vs, &vscupd.Name)
