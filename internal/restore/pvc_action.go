@@ -183,7 +183,7 @@ func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInp
 			}
 
 			operationID = label.GetValidName(string(velerov1api.AsyncOperationIDPrefixDataDownload) + string(input.Restore.UID) + "." + string(pvcFromBackup.UID))
-			dataDownload, err := restoreFromDataUploadResult(context.Background(), input.Restore, &pvc, newNamespace,
+			dataDownload, err := restoreFromDataUploadResult(context.Background(), input.Restore, backup, &pvc, newNamespace,
 				operationID, p.Client, p.VeleroClient)
 			if err != nil {
 				logger.Errorf("Fail to restore from DataUploadResult: %s", err.Error())
@@ -375,7 +375,7 @@ func cancelDataDownload(ctx context.Context, veleroClient veleroClientSet.Interf
 	return err
 }
 
-func newDataDownload(restore *velerov1api.Restore, dataUploadResult *velerov2alpha1.DataUploadResult,
+func newDataDownload(restore *velerov1api.Restore, backup *velerov1api.Backup, dataUploadResult *velerov2alpha1.DataUploadResult,
 	pvc *corev1api.PersistentVolumeClaim, newNamespace, operationID string) *velerov2alpha1.DataDownload {
 	dataDownload := &velerov2alpha1.DataDownload{
 		TypeMeta: metav1.TypeMeta{
@@ -409,7 +409,7 @@ func newDataDownload(restore *velerov1api.Restore, dataUploadResult *velerov2alp
 			DataMover:             dataUploadResult.DataMover,
 			SnapshotID:            dataUploadResult.SnapshotID,
 			SourceNamespace:       dataUploadResult.SourceNamespace,
-			OperationTimeout:      restore.Spec.ItemOperationTimeout,
+			OperationTimeout:      backup.Spec.CSISnapshotTimeout,
 		},
 	}
 
@@ -443,7 +443,7 @@ func restoreFromVolumeSnapshot(pvc *corev1api.PersistentVolumeClaim, newNamespac
 	return nil
 }
 
-func restoreFromDataUploadResult(ctx context.Context, restore *velerov1api.Restore, pvc *corev1api.PersistentVolumeClaim,
+func restoreFromDataUploadResult(ctx context.Context, restore *velerov1api.Restore, backup *velerov1api.Backup, pvc *corev1api.PersistentVolumeClaim,
 	newNamespace, operationID string, kubeClient kubernetes.Interface, veleroClient veleroClientSet.Interface) (*velerov2alpha1.DataDownload, error) {
 	dataUploadResult, err := getDataUploadResult(ctx, restore, pvc, kubeClient)
 	if err != nil {
@@ -458,7 +458,7 @@ func restoreFromDataUploadResult(ctx context.Context, restore *velerov1api.Resto
 	}
 	pvc.Spec.Selector.MatchLabels[util.DynamicPVRestoreLabel] = label.GetValidName(fmt.Sprintf("%s.%s.%s", newNamespace, pvc.Name, utilrand.String(GenerateNameRandomLength)))
 
-	dataDownload := newDataDownload(restore, dataUploadResult, pvc, newNamespace, operationID)
+	dataDownload := newDataDownload(restore, backup, dataUploadResult, pvc, newNamespace, operationID)
 	_, err = veleroClient.VeleroV2alpha1().DataDownloads(restore.Namespace).Create(ctx, dataDownload, metav1.CreateOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "fail to create DataDownload")
