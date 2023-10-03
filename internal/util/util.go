@@ -268,6 +268,7 @@ func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1api.VolumeSnap
 		if err == wait.ErrWaitTimeout {
 			if snapshotContent.Status != nil && snapshotContent.Status.Error != nil {
 				log.Errorf("Timed out awaiting reconciliation of volumesnapshot, Volumesnapshotcontent %s has error: %v", snapshotContent.Name, *snapshotContent.Status.Error.Message)
+				return nil, errors.Errorf("CSI got timed out with error: %v", *snapshotContent.Status.Error.Message)
 			} else {
 				log.Errorf("Timed out awaiting reconciliation of volumesnapshot %s/%s", volSnap.Namespace, volSnap.Name)
 			}
@@ -401,7 +402,7 @@ func CleanupVolumeSnapshot(volSnap *snapshotv1api.VolumeSnapshot, snapshotClient
 	if err != nil {
 		log.Debugf("Failed to delete volumesnapshot %s/%s: %v", vs.Namespace, vs.Name, err)
 	} else {
-		log.Info("Deleted volumesnapshot with volumesnapshotContent %s/%s", vs.Namespace, vs.Name)
+		log.Infof("Deleted volumesnapshot with volumesnapshotContent %s/%s", vs.Namespace, vs.Name)
 	}
 }
 
