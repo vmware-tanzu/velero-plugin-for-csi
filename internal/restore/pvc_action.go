@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	jsonpatch "github.com/evanphx/json-patch"
 	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	snapshotterClientSet "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	"github.com/pkg/errors"
@@ -30,15 +29,15 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	utilrand "k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
-	veleroClientSet "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
 	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	riav2 "github.com/vmware-tanzu/velero/pkg/plugin/velero/restoreitemaction/v2"
@@ -62,7 +61,7 @@ type PVCRestoreItemAction struct {
 	Log            logrus.FieldLogger
 	Client         kubernetes.Interface
 	SnapshotClient snapshotterClientSet.Interface
-	VeleroClient   veleroClientSet.Interface
+	CRClient       crclient.Client
 }
 
 // AppliesTo returns information indicating that the PVCRestoreItemAction should be run while restoring PVCs.
@@ -162,8 +161,9 @@ func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInp
 		pvc.Spec.DataSource = nil
 		pvc.Spec.DataSourceRef = nil
 	} else {
-		backup, err := p.VeleroClient.VeleroV1().Backups(input.Restore.Namespace).Get(context.Background(),
-			input.Restore.Spec.BackupName, metav1.GetOptions{})
+		backup := new(velerov1api.Backup)
+		err := p.CRClient.Get(context.TODO(), crclient.ObjectKey{Namespace: input.Restore.Namespace, Name: input.Restore.Spec.BackupName}, backup)
+
 		if err != nil {
 			logger.Error("Fail to get backup for restore.")
 			return nil, fmt.Errorf("fail to get backup for restore: %s", err.Error())
@@ -184,7 +184,7 @@ func (p *PVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInp
 
 			operationID = label.GetValidName(string(velerov1api.AsyncOperationIDPrefixDataDownload) + string(input.Restore.UID) + "." + string(pvcFromBackup.UID))
 			dataDownload, err := restoreFromDataUploadResult(context.Background(), input.Restore, backup, &pvc, newNamespace,
-				operationID, p.Client, p.VeleroClient)
+				operationID, p.Client, p.CRClient)
 			if err != nil {
 				logger.Errorf("Fail to restore from DataUploadResult: %s", err.Error())
 				return nil, errors.WithStack(err)
@@ -234,7 +234,7 @@ func (p *PVCRestoreItemAction) Progress(operationID string, restore *velerov1api
 		"Namespace":   restore.Namespace,
 	})
 
-	dataDownload, err := getDataDownload(context.Background(), restore.Namespace, operationID, p.VeleroClient)
+	dataDownload, err := getDataDownload(context.Background(), restore.Namespace, operationID, p.CRClient)
 	if err != nil {
 		logger.Errorf("fail to get DataDownload: %s", err.Error())
 		return progress, err
@@ -281,13 +281,13 @@ func (p *PVCRestoreItemAction) Cancel(operationID string, restore *velerov1api.R
 		"Namespace":   restore.Namespace,
 	})
 
-	dataDownload, err := getDataDownload(context.Background(), restore.Namespace, operationID, p.VeleroClient)
+	dataDownload, err := getDataDownload(context.Background(), restore.Namespace, operationID, p.CRClient)
 	if err != nil {
 		logger.Errorf("fail to get DataDownload: %s", err.Error())
 		return err
 	}
 
-	err = cancelDataDownload(context.Background(), p.VeleroClient, dataDownload)
+	err = cancelDataDownload(context.Background(), p.CRClient, dataDownload)
 	if err != nil {
 		logger.Errorf("fail to cancel DataDownload %s: %s", dataDownload.Name, err.Error())
 	}
@@ -331,10 +331,9 @@ func getDataUploadResult(ctx context.Context, restore *velerov1api.Restore, pvc 
 	return &result, nil
 }
 
-func getDataDownload(ctx context.Context, namespace string, operationID string, veleroClient veleroClientSet.Interface) (*velerov2alpha1.DataDownload, error) {
-	dataDownloadList, err := veleroClient.VeleroV2alpha1().DataDownloads(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=%s", velerov1api.AsyncOperationIDLabel, operationID),
-	})
+func getDataDownload(ctx context.Context, namespace string, operationID string, crClient crclient.Client) (*velerov2alpha1.DataDownload, error) {
+	dataDownloadList := new(velerov2alpha1.DataDownloadList)
+	err := crClient.List(ctx, dataDownloadList, &crclient.ListOptions{LabelSelector: labels.SelectorFromSet(map[string]string{velerov1api.AsyncOperationIDLabel: operationID})})
 	if err != nil {
 		return nil, errors.Wrap(err, "fail to list DataDownload")
 	}
@@ -350,28 +349,13 @@ func getDataDownload(ctx context.Context, namespace string, operationID string, 
 	return &dataDownloadList.Items[0], nil
 }
 
-func cancelDataDownload(ctx context.Context, veleroClient veleroClientSet.Interface,
+func cancelDataDownload(ctx context.Context, crClient crclient.Client,
 	dataDownload *velerov2alpha1.DataDownload) error {
-	oldData, err := json.Marshal(dataDownload)
-	if err != nil {
-		return errors.Wrap(err, "fail to marshal origin DataDownload")
-	}
 
 	updatedDataDownload := dataDownload.DeepCopy()
 	updatedDataDownload.Spec.Cancel = true
 
-	newData, err := json.Marshal(updatedDataDownload)
-	if err != nil {
-		return errors.Wrap(err, "fail to marshal updated DataDownload")
-	}
-
-	patchData, err := jsonpatch.CreateMergePatch(oldData, newData)
-	if err != nil {
-		return errors.Wrap(err, "fail to create merge patch for DataDownload")
-	}
-
-	_, err = veleroClient.VeleroV2alpha1().DataDownloads(dataDownload.Namespace).Patch(ctx, dataDownload.Name,
-		types.MergePatchType, patchData, metav1.PatchOptions{})
+	err := crClient.Patch(context.Background(), updatedDataDownload, crclient.MergeFrom(dataDownload))
 	return err
 }
 
@@ -444,7 +428,7 @@ func restoreFromVolumeSnapshot(pvc *corev1api.PersistentVolumeClaim, newNamespac
 }
 
 func restoreFromDataUploadResult(ctx context.Context, restore *velerov1api.Restore, backup *velerov1api.Backup, pvc *corev1api.PersistentVolumeClaim,
-	newNamespace, operationID string, kubeClient kubernetes.Interface, veleroClient veleroClientSet.Interface) (*velerov2alpha1.DataDownload, error) {
+	newNamespace, operationID string, kubeClient kubernetes.Interface, crClient crclient.Client) (*velerov2alpha1.DataDownload, error) {
 	dataUploadResult, err := getDataUploadResult(ctx, restore, pvc, kubeClient)
 	if err != nil {
 		return nil, errors.Wrapf(err, "fail get DataUploadResult for restore: %s", restore.Name)
@@ -459,7 +443,7 @@ func restoreFromDataUploadResult(ctx context.Context, restore *velerov1api.Resto
 	pvc.Spec.Selector.MatchLabels[util.DynamicPVRestoreLabel] = label.GetValidName(fmt.Sprintf("%s.%s.%s", newNamespace, pvc.Name, utilrand.String(GenerateNameRandomLength)))
 
 	dataDownload := newDataDownload(restore, backup, dataUploadResult, pvc, newNamespace, operationID)
-	_, err = veleroClient.VeleroV2alpha1().DataDownloads(restore.Namespace).Create(ctx, dataDownload, metav1.CreateOptions{})
+	err = crClient.Create(ctx, dataDownload)
 	if err != nil {
 		return nil, errors.Wrapf(err, "fail to create DataDownload")
 	}

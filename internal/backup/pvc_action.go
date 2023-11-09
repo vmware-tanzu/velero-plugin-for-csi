@@ -18,10 +18,8 @@ package backup
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
-	jsonpatch "github.com/evanphx/json-patch"
 	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	snapshotterClientSet "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	"github.com/pkg/errors"
@@ -29,16 +27,16 @@ import (
 	corev1api "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
-	veleroClientSet "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
 	"github.com/vmware-tanzu/velero/pkg/kuberesource"
 	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
@@ -51,7 +49,7 @@ type PVCBackupItemAction struct {
 	Log            logrus.FieldLogger
 	Client         kubernetes.Interface
 	SnapshotClient snapshotterClientSet.Interface
-	VeleroClient   veleroClientSet.Interface
+	CRClient       crclient.Client
 }
 
 // AppliesTo returns information indicating that the PVCBackupItemAction should be invoked to backup PVCs.
@@ -195,7 +193,7 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 
 		dataUploadLog.Info("Starting data upload of backup")
 
-		dataUpload, err := createDataUpload(context.Background(), backup, p.VeleroClient, upd, &pvc, operationID)
+		dataUpload, err := createDataUpload(context.Background(), backup, p.CRClient, upd, &pvc, operationID)
 		if err != nil {
 			dataUploadLog.WithError(err).Error("failed to submit DataUpload")
 			util.DeleteVolumeSnapshotIfAny(context.Background(), p.SnapshotClient, *upd, dataUploadLog)
@@ -254,7 +252,7 @@ func (p *PVCBackupItemAction) Progress(operationID string, backup *velerov1api.B
 		return progress, biav2.InvalidOperationIDError(operationID)
 	}
 
-	dataUpload, err := getDataUpload(context.Background(), backup, p.VeleroClient, operationID)
+	dataUpload, err := getDataUpload(context.Background(), backup, p.CRClient, operationID)
 	if err != nil {
 		p.Log.Errorf("fail to get DataUpload for backup %s/%s: %s", backup.Namespace, backup.Name, err.Error())
 		return progress, err
@@ -295,13 +293,13 @@ func (p *PVCBackupItemAction) Cancel(operationID string, backup *velerov1api.Bac
 		return biav2.InvalidOperationIDError(operationID)
 	}
 
-	dataUpload, err := getDataUpload(context.Background(), backup, p.VeleroClient, operationID)
+	dataUpload, err := getDataUpload(context.Background(), backup, p.CRClient, operationID)
 	if err != nil {
 		p.Log.Errorf("fail to get DataUpload for backup %s/%s: %s", backup.Namespace, backup.Name, err.Error())
 		return err
 	}
 
-	return cancelDataUpload(context.Background(), p.VeleroClient, dataUpload)
+	return cancelDataUpload(context.Background(), p.CRClient, dataUpload)
 }
 
 func newDataUpload(backup *velerov1api.Backup, vs *snapshotv1api.VolumeSnapshot,
@@ -347,11 +345,11 @@ func newDataUpload(backup *velerov1api.Backup, vs *snapshotv1api.VolumeSnapshot,
 	return dataUpload
 }
 
-func createDataUpload(ctx context.Context, backup *velerov1api.Backup, veleroClient veleroClientSet.Interface,
+func createDataUpload(ctx context.Context, backup *velerov1api.Backup, crClient crclient.Client,
 	vs *snapshotv1api.VolumeSnapshot, pvc *corev1api.PersistentVolumeClaim, operationID string) (*velerov2alpha1.DataUpload, error) {
 	dataUpload := newDataUpload(backup, vs, pvc, operationID)
 
-	dataUpload, err := veleroClient.VeleroV2alpha1().DataUploads(dataUpload.Namespace).Create(ctx, dataUpload, metav1.CreateOptions{})
+	err := crClient.Create(ctx, dataUpload)
 	if err != nil {
 		return nil, errors.Wrap(err, "fail to create DataUpload CR")
 	}
@@ -360,10 +358,11 @@ func createDataUpload(ctx context.Context, backup *velerov1api.Backup, veleroCli
 }
 
 func getDataUpload(ctx context.Context, backup *velerov1api.Backup,
-	veleroClient veleroClientSet.Interface, operationID string) (*velerov2alpha1.DataUpload, error) {
-	listOptions := metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=%s", velerov1api.AsyncOperationIDLabel, operationID)}
-
-	dataUploadList, err := veleroClient.VeleroV2alpha1().DataUploads(backup.Namespace).List(context.Background(), listOptions)
+	crClient crclient.Client, operationID string) (*velerov2alpha1.DataUpload, error) {
+	dataUploadList := new(velerov2alpha1.DataUploadList)
+	err := crClient.List(context.Background(), dataUploadList, &crclient.ListOptions{
+		LabelSelector: labels.SelectorFromSet(map[string]string{velerov1api.AsyncOperationIDLabel: operationID}),
+	})
 	if err != nil {
 		return nil, errors.Wrapf(err, "error to list DataUpload")
 	}
@@ -379,27 +378,13 @@ func getDataUpload(ctx context.Context, backup *velerov1api.Backup,
 	return &dataUploadList.Items[0], nil
 }
 
-func cancelDataUpload(ctx context.Context, veleroClient veleroClientSet.Interface,
+func cancelDataUpload(ctx context.Context, crClient crclient.Client,
 	dataUpload *velerov2alpha1.DataUpload) error {
-	oldData, err := json.Marshal(dataUpload)
-	if err != nil {
-		return errors.Wrap(err, "error marshalling original DataUpload")
-	}
 
 	updatedDataUpload := dataUpload.DeepCopy()
 	updatedDataUpload.Spec.Cancel = true
 
-	newData, err := json.Marshal(updatedDataUpload)
-	if err != nil {
-		return errors.Wrap(err, "err marshalling updated DataUpload")
-	}
-
-	patchData, err := jsonpatch.CreateMergePatch(oldData, newData)
-	if err != nil {
-		return errors.Wrap(err, "error creating patch data for DataUpload")
-	}
-
-	_, err = veleroClient.VeleroV2alpha1().DataUploads(dataUpload.Namespace).Patch(ctx, dataUpload.Name, types.MergePatchType, patchData, metav1.PatchOptions{})
+	err := crClient.Patch(context.Background(), updatedDataUpload, crclient.MergeFrom(dataUpload))
 	if err != nil {
 		return errors.Wrap(err, "error patch DataUpload")
 	}

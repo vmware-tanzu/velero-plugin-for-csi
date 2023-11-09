@@ -30,14 +30,16 @@ import (
 	corev1api "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	veleroClientSet "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
+	velerov2alpha1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
 	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/podvolume"
 )
@@ -285,7 +287,7 @@ func GetClients() (*kubernetes.Clientset, snapshotterClientSet.Interface, error)
 	return client, snapshotterClient, err
 }
 
-func GetFullClients() (*kubernetes.Clientset, snapshotterClientSet.Interface, *veleroClientSet.Clientset, error) {
+func GetFullClients() (*kubernetes.Clientset, snapshotterClientSet.Interface, crclient.Client, error) {
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 	configOverrides := &clientcmd.ConfigOverrides{}
 	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
@@ -304,12 +306,22 @@ func GetFullClients() (*kubernetes.Clientset, snapshotterClientSet.Interface, *v
 		return nil, nil, nil, errors.WithStack(err)
 	}
 
-	veleroClient, err := veleroClientSet.NewForConfig(clientConfig)
+	scheme := runtime.NewScheme()
+	if err := velerov1api.AddToScheme(scheme); err != nil {
+		return nil, nil, nil, errors.WithStack(err)
+	}
+	if err := velerov2alpha1api.AddToScheme(scheme); err != nil {
+		return nil, nil, nil, errors.WithStack(err)
+	}
+
+	crClient, err := crclient.New(clientConfig, crclient.Options{
+		Scheme: scheme,
+	})
 	if err != nil {
 		return nil, nil, nil, errors.WithStack(err)
 	}
 
-	return client, snapshotterClient, veleroClient, nil
+	return client, snapshotterClient, crClient, nil
 }
 
 // IsVolumeSnapshotClassHasListerSecret returns whether a volumesnapshotclass has a snapshotlister secret

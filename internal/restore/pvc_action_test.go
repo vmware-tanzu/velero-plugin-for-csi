@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	snapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
 	"github.com/sirupsen/logrus"
@@ -30,18 +32,20 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/kubernetes/fake"
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	"github.com/vmware-tanzu/velero/pkg/apis/velero/shared"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
 	"github.com/vmware-tanzu/velero/pkg/builder"
-	velerofake "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned/fake"
 	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
+	velerotest "github.com/vmware-tanzu/velero/pkg/test"
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
 
@@ -371,7 +375,7 @@ func TestProgress(t *testing.T) {
 			dataDownload: &velerov2alpha1.DataDownload{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "DataUpload",
-					APIVersion: "v2alpha1",
+					APIVersion: velerov2alpha1.SchemeGroupVersion.String(),
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "velero",
@@ -408,11 +412,11 @@ func TestProgress(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(*testing.T) {
 			pvcRIA := PVCRestoreItemAction{
-				Log:          logrus.New(),
-				VeleroClient: velerofake.NewSimpleClientset(),
+				Log:      logrus.New(),
+				CRClient: velerotest.NewFakeControllerRuntimeClient(t),
 			}
 			if tc.dataDownload != nil {
-				_, err := pvcRIA.VeleroClient.VeleroV2alpha1().DataDownloads(tc.dataDownload.Namespace).Create(context.Background(), tc.dataDownload, metav1.CreateOptions{})
+				err := pvcRIA.CRClient.Create(context.Background(), tc.dataDownload)
 				require.NoError(t, err)
 			}
 
@@ -423,7 +427,7 @@ func TestProgress(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			require.Equal(t, tc.expectedProgress, progress)
+			require.True(t, cmp.Equal(tc.expectedProgress, progress, cmpopts.IgnoreFields(velero.OperationProgress{}, "Started", "Updated")))
 		})
 	}
 }
@@ -443,7 +447,7 @@ func TestCancel(t *testing.T) {
 			dataDownload: &velerov2alpha1.DataDownload{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "DataDownload",
-					APIVersion: "v2alpha1",
+					APIVersion: velerov2alpha1.SchemeGroupVersion.String(),
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "velero",
@@ -458,7 +462,7 @@ func TestCancel(t *testing.T) {
 			expectedDataDownload: velerov2alpha1.DataDownload{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "DataDownload",
-					APIVersion: "v2alpha1",
+					APIVersion: velerov2alpha1.SchemeGroupVersion.String(),
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "velero",
@@ -481,7 +485,7 @@ func TestCancel(t *testing.T) {
 			expectedDataDownload: velerov2alpha1.DataDownload{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "DataDownload",
-					APIVersion: "v2alpha1",
+					APIVersion: velerov2alpha1.SchemeGroupVersion.String(),
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "velero",
@@ -500,11 +504,11 @@ func TestCancel(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(*testing.T) {
 			pvcRIA := PVCRestoreItemAction{
-				Log:          logrus.New(),
-				VeleroClient: velerofake.NewSimpleClientset(),
+				Log:      logrus.New(),
+				CRClient: velerotest.NewFakeControllerRuntimeClient(t),
 			}
 			if tc.dataDownload != nil {
-				_, err := pvcRIA.VeleroClient.VeleroV2alpha1().DataDownloads(tc.dataDownload.Namespace).Create(context.Background(), tc.dataDownload, metav1.CreateOptions{})
+				err := pvcRIA.CRClient.Create(context.Background(), tc.dataDownload)
 				require.NoError(t, err)
 			}
 
@@ -515,10 +519,11 @@ func TestCancel(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			resultDataDownload, err := pvcRIA.VeleroClient.VeleroV2alpha1().DataDownloads(tc.dataDownload.Namespace).Get(context.Background(), tc.dataDownload.Name, metav1.GetOptions{})
+			resultDataDownload := new(velerov2alpha1.DataDownload)
+			err = pvcRIA.CRClient.Get(context.Background(), crclient.ObjectKey{Namespace: tc.dataDownload.Namespace, Name: tc.dataDownload.Name}, resultDataDownload)
 			require.NoError(t, err)
 
-			require.Equal(t, tc.expectedDataDownload, *resultDataDownload)
+			require.True(t, cmp.Equal(tc.expectedDataDownload, *resultDataDownload, cmpopts.IgnoreFields(velerov2alpha1.DataDownload{}, "ResourceVersion", "Name")))
 		})
 	}
 }
@@ -590,7 +595,7 @@ func TestExecute(t *testing.T) {
 			pvc:              builder.ForPersistentVolumeClaim("velero", "testPVC").ObjectMeta(builder.WithAnnotations(util.VolumeSnapshotRestoreSize, "10Gi", util.DataUploadNameAnnotation, "velero/")).Result(),
 			dataUploadResult: builder.ForConfigMap("velero", "testCM").Data("uid", "{}").ObjectMeta(builder.WithLabels(velerov1api.RestoreUIDLabel, "uid", velerov1api.PVCNamespaceNameLabel, "velero.testPVC", velerov1api.ResourceUsageLabel, label.GetValidName(string(velerov1api.VeleroResourceUsageDataUploadResult)))).Result(),
 			expectedPVC:      builder.ForPersistentVolumeClaim("velero", "testPVC").ObjectMeta(builder.WithAnnotations("velero.io/vsi-volumesnapshot-restore-size", "10Gi")).Result(),
-			expectedDataDownload: builder.ForDataDownload("velero", "").TargetVolume(velerov2alpha1.TargetVolumeSpec{PVC: "testPVC", Namespace: "velero"}).
+			expectedDataDownload: builder.ForDataDownload("velero", "name").TargetVolume(velerov2alpha1.TargetVolumeSpec{PVC: "testPVC", Namespace: "velero"}).
 				ObjectMeta(builder.WithOwnerReference([]metav1.OwnerReference{{APIVersion: velerov1api.SchemeGroupVersion.String(), Kind: "Restore", Name: "testRestore", UID: "uid", Controller: boolptr.True()}}),
 					builder.WithLabelsMap(map[string]string{velerov1api.AsyncOperationIDLabel: "dd-uid.", velerov1api.RestoreNameLabel: "testRestore", velerov1api.RestoreUIDLabel: "uid"}),
 					builder.WithGenerateName("testRestore-")).Result(),
@@ -631,7 +636,7 @@ func TestExecute(t *testing.T) {
 				Log:            logrus.New(),
 				Client:         fake.NewSimpleClientset(),
 				SnapshotClient: snapshotfake.NewSimpleClientset(),
-				VeleroClient:   velerofake.NewSimpleClientset(),
+				CRClient:       velerotest.NewFakeControllerRuntimeClient(t),
 			}
 			input := new(velero.RestoreItemActionExecuteInput)
 
@@ -650,7 +655,7 @@ func TestExecute(t *testing.T) {
 			}
 
 			if tc.backup != nil {
-				_, err := pvcRIA.VeleroClient.VeleroV1().Backups(tc.backup.Namespace).Create(context.Background(), tc.backup, metav1.CreateOptions{})
+				err := pvcRIA.CRClient.Create(context.Background(), tc.backup)
 				require.NoError(t, err)
 			}
 
@@ -686,9 +691,12 @@ func TestExecute(t *testing.T) {
 				}
 			}
 			if tc.expectedDataDownload != nil {
-				dataDownload, err := pvcRIA.VeleroClient.VeleroV2alpha1().DataDownloads(tc.expectedDataDownload.Namespace).Get(context.Background(), tc.expectedDataDownload.Name, metav1.GetOptions{})
+				dataDownloadList := new(velerov2alpha1.DataDownloadList)
+				err := pvcRIA.CRClient.List(context.Background(), dataDownloadList, &crclient.ListOptions{
+					LabelSelector: labels.SelectorFromSet(tc.expectedDataDownload.Labels),
+				})
 				require.NoError(t, err)
-				require.Equal(t, tc.expectedDataDownload, dataDownload)
+				require.True(t, cmp.Equal(tc.expectedDataDownload, &dataDownloadList.Items[0], cmpopts.IgnoreFields(velerov2alpha1.DataDownload{}, "ResourceVersion", "Name")))
 			}
 		})
 	}

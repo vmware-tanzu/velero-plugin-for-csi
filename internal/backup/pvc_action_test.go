@@ -18,10 +18,11 @@ package backup
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	v1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	snapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
@@ -31,17 +32,19 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes/fake"
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/vmware-tanzu/velero-plugin-for-csi/internal/util"
 	"github.com/vmware-tanzu/velero/pkg/apis/velero/shared"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
 	"github.com/vmware-tanzu/velero/pkg/builder"
-	velerofake "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned/fake"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
+	velerotest "github.com/vmware-tanzu/velero/pkg/test"
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
 
@@ -135,7 +138,7 @@ func TestExecute(t *testing.T) {
 		t.Run(tc.name, func(*testing.T) {
 			client := fake.NewSimpleClientset()
 			snapshotClient := snapshotfake.NewSimpleClientset()
-			veleroClient := velerofake.NewSimpleClientset()
+			crClient := velerotest.NewFakeControllerRuntimeClient(t)
 			logger := logrus.New()
 			logger.Level = logrus.DebugLevel
 
@@ -160,7 +163,7 @@ func TestExecute(t *testing.T) {
 				Log:            logger,
 				Client:         client,
 				SnapshotClient: snapshotClient,
-				VeleroClient:   veleroClient,
+				CRClient:       crClient,
 			}
 
 			pvcMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&tc.pvc)
@@ -197,16 +200,17 @@ func TestExecute(t *testing.T) {
 			}
 
 			if tc.expectedDataUpload != nil {
-				dataUploadList, err := veleroClient.VeleroV2alpha1().DataUploads(tc.backup.Namespace).List(context.Background(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=%s", velerov1api.BackupNameLabel, tc.backup.Name)})
+				dataUploadList := new(velerov2alpha1.DataUploadList)
+				err := crClient.List(context.Background(), dataUploadList, &crclient.ListOptions{LabelSelector: labels.SelectorFromSet(map[string]string{velerov1api.BackupNameLabel: tc.backup.Name})})
 				require.NoError(t, err)
 				require.Equal(t, 1, len(dataUploadList.Items))
-				require.Equal(t, *tc.expectedDataUpload, dataUploadList.Items[0])
+				require.True(t, cmp.Equal(tc.expectedDataUpload, &dataUploadList.Items[0], cmpopts.IgnoreFields(velerov2alpha1.DataUpload{}, "ResourceVersion", "Name")))
 			}
 
 			if tc.expectedPVC != nil {
 				resultPVC := new(corev1.PersistentVolumeClaim)
 				runtime.DefaultUnstructuredConverter.FromUnstructured(resultUnstructed.UnstructuredContent(), resultPVC)
-				require.Equal(t, *tc.expectedPVC, *resultPVC)
+				require.True(t, cmp.Equal(tc.expectedPVC, resultPVC, cmpopts.IgnoreFields(corev1.PersistentVolumeClaim{}, "Annotations")))
 			}
 		})
 	}
@@ -217,7 +221,7 @@ func TestProgress(t *testing.T) {
 	tests := []struct {
 		name             string
 		backup           *velerov1api.Backup
-		dataUpload       velerov2alpha1.DataUpload
+		dataUpload       *velerov2alpha1.DataUpload
 		operationID      string
 		expectedErr      string
 		expectedProgress velero.OperationProgress
@@ -231,7 +235,7 @@ func TestProgress(t *testing.T) {
 		{
 			name:   "DataUpload is found",
 			backup: builder.ForBackup("velero", "test").Result(),
-			dataUpload: velerov2alpha1.DataUpload{
+			dataUpload: &velerov2alpha1.DataUpload{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "DataUpload",
 					APIVersion: "v2alpha1",
@@ -272,24 +276,26 @@ func TestProgress(t *testing.T) {
 		t.Run(tc.name, func(*testing.T) {
 			client := fake.NewSimpleClientset()
 			snapshotClient := snapshotfake.NewSimpleClientset()
-			veleroClient := velerofake.NewSimpleClientset()
+			crClient := velerotest.NewFakeControllerRuntimeClient(t)
 			logger := logrus.New()
 
 			pvcBIA := PVCBackupItemAction{
 				Log:            logger,
 				Client:         client,
 				SnapshotClient: snapshotClient,
-				VeleroClient:   veleroClient,
+				CRClient:       crClient,
 			}
 
-			_, err := veleroClient.VeleroV2alpha1().DataUploads(tc.dataUpload.Namespace).Create(context.Background(), &tc.dataUpload, metav1.CreateOptions{})
-			require.NoError(t, err)
+			if tc.dataUpload != nil {
+				err := crClient.Create(context.Background(), tc.dataUpload)
+				require.NoError(t, err)
+			}
 
 			progress, err := pvcBIA.Progress(tc.operationID, tc.backup)
 			if tc.expectedErr != "" {
 				require.Equal(t, tc.expectedErr, err.Error())
 			}
-			require.Equal(t, tc.expectedProgress, progress)
+			require.True(t, cmp.Equal(tc.expectedProgress, progress, cmpopts.IgnoreFields(velero.OperationProgress{}, "Started", "Updated")))
 		})
 	}
 }
@@ -309,7 +315,7 @@ func TestCancel(t *testing.T) {
 			dataUpload: velerov2alpha1.DataUpload{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "DataUpload",
-					APIVersion: "v2alpha1",
+					APIVersion: velerov2alpha1.SchemeGroupVersion.String(),
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "velero",
@@ -324,7 +330,7 @@ func TestCancel(t *testing.T) {
 			expectedDataUpload: velerov2alpha1.DataUpload{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "DataUpload",
-					APIVersion: "v2alpha1",
+					APIVersion: velerov2alpha1.SchemeGroupVersion.String(),
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "velero",
@@ -344,17 +350,17 @@ func TestCancel(t *testing.T) {
 		t.Run(tc.name, func(*testing.T) {
 			client := fake.NewSimpleClientset()
 			snapshotClient := snapshotfake.NewSimpleClientset()
-			veleroClient := velerofake.NewSimpleClientset()
+			crClient := velerotest.NewFakeControllerRuntimeClient(t)
 			logger := logrus.New()
 
 			pvcBIA := PVCBackupItemAction{
 				Log:            logger,
 				Client:         client,
 				SnapshotClient: snapshotClient,
-				VeleroClient:   veleroClient,
+				CRClient:       crClient,
 			}
 
-			_, err := veleroClient.VeleroV2alpha1().DataUploads(tc.dataUpload.Namespace).Create(context.Background(), &tc.dataUpload, metav1.CreateOptions{})
+			err := crClient.Create(context.Background(), &tc.dataUpload)
 			require.NoError(t, err)
 
 			err = pvcBIA.Cancel(tc.operationID, tc.backup)
@@ -362,10 +368,11 @@ func TestCancel(t *testing.T) {
 				require.Equal(t, err, tc.expectedErr)
 			}
 
-			du, err := veleroClient.VeleroV2alpha1().DataUploads(tc.dataUpload.Namespace).Get(context.Background(), tc.dataUpload.Name, metav1.GetOptions{})
+			du := new(velerov2alpha1.DataUpload)
+			err = crClient.Get(context.Background(), crclient.ObjectKey{Namespace: tc.dataUpload.Namespace, Name: tc.dataUpload.Name}, du)
 			require.NoError(t, err)
 
-			require.Equal(t, *du, tc.expectedDataUpload)
+			require.True(t, cmp.Equal(tc.expectedDataUpload, *du, cmpopts.IgnoreFields(velerov2alpha1.DataUpload{}, "ResourceVersion")))
 		})
 	}
 }

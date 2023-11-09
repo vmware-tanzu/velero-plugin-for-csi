@@ -44,7 +44,7 @@ func main() {
 }
 
 func newPVCBackupItemAction(logger logrus.FieldLogger) (interface{}, error) {
-	client, snapshotClient, veleroClient, err := util.GetFullClients()
+	client, snapshotClient, crClient, err := util.GetFullClients()
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -53,7 +53,7 @@ func newPVCBackupItemAction(logger logrus.FieldLogger) (interface{}, error) {
 		Log:            logger,
 		Client:         client,
 		SnapshotClient: snapshotClient,
-		VeleroClient:   veleroClient,
+		CRClient:       crClient,
 	}, nil
 }
 
@@ -70,7 +70,7 @@ func newVolumeSnapContentBackupItemAction(logger logrus.FieldLogger) (interface{
 }
 
 func newPVCRestoreItemAction(logger logrus.FieldLogger) (interface{}, error) {
-	client, snapshotClient, veleroClient, err := util.GetFullClients()
+	client, snapshotClient, crClient, err := util.GetFullClients()
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -79,7 +79,7 @@ func newPVCRestoreItemAction(logger logrus.FieldLogger) (interface{}, error) {
 		Log:            logger,
 		Client:         client,
 		SnapshotClient: snapshotClient,
-		VeleroClient:   veleroClient,
+		CRClient:       crClient,
 	}, nil
 }
 
