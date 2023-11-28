@@ -193,7 +193,7 @@ func (p *PVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov
 
 		dataUploadLog.Info("Starting data upload of backup")
 
-		dataUpload, err := createDataUpload(context.Background(), backup, p.CRClient, upd, &pvc, operationID)
+		dataUpload, err := createDataUpload(context.Background(), backup, p.CRClient, upd, &pvc, operationID, snapshotClass)
 		if err != nil {
 			dataUploadLog.WithError(err).Error("failed to submit DataUpload")
 			util.DeleteVolumeSnapshotIfAny(context.Background(), p.SnapshotClient, *upd, dataUploadLog)
@@ -303,7 +303,7 @@ func (p *PVCBackupItemAction) Cancel(operationID string, backup *velerov1api.Bac
 }
 
 func newDataUpload(backup *velerov1api.Backup, vs *snapshotv1api.VolumeSnapshot,
-	pvc *corev1api.PersistentVolumeClaim, operationID string) *velerov2alpha1.DataUpload {
+	pvc *corev1api.PersistentVolumeClaim, operationID string, vsClass *snapshotv1api.VolumeSnapshotClass) *velerov2alpha1.DataUpload {
 	dataUpload := &velerov2alpha1.DataUpload{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: velerov2alpha1.SchemeGroupVersion.String(),
@@ -333,6 +333,7 @@ func newDataUpload(backup *velerov1api.Backup, vs *snapshotv1api.VolumeSnapshot,
 			CSISnapshot: &velerov2alpha1.CSISnapshotSpec{
 				VolumeSnapshot: vs.Name,
 				StorageClass:   *pvc.Spec.StorageClassName,
+				SnapshotClass:  vsClass.Name,
 			},
 			SourcePVC:             pvc.Name,
 			DataMover:             backup.Spec.DataMover,
@@ -346,8 +347,9 @@ func newDataUpload(backup *velerov1api.Backup, vs *snapshotv1api.VolumeSnapshot,
 }
 
 func createDataUpload(ctx context.Context, backup *velerov1api.Backup, crClient crclient.Client,
-	vs *snapshotv1api.VolumeSnapshot, pvc *corev1api.PersistentVolumeClaim, operationID string) (*velerov2alpha1.DataUpload, error) {
-	dataUpload := newDataUpload(backup, vs, pvc, operationID)
+	vs *snapshotv1api.VolumeSnapshot, pvc *corev1api.PersistentVolumeClaim, operationID string,
+	vsClass *snapshotv1api.VolumeSnapshotClass) (*velerov2alpha1.DataUpload, error) {
+	dataUpload := newDataUpload(backup, vs, pvc, operationID, vsClass)
 
 	err := crClient.Create(ctx, dataUpload)
 	if err != nil {

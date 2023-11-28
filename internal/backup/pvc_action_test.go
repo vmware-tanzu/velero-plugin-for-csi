@@ -79,7 +79,7 @@ func TestExecute(t *testing.T) {
 			pvc:         builder.ForPersistentVolumeClaim("velero", "testPVC").VolumeName("testPV").StorageClass("testSC").Phase(corev1.ClaimBound).Result(),
 			pv:          builder.ForPersistentVolume("testPV").CSI("hostpath", "testVolume").Result(),
 			sc:          builder.ForStorageClass("testSC").Provisioner("hostpath").Result(),
-			vsClass:     builder.ForVolumeSnapshotClass("tescVSClass").Driver("hostpath").ObjectMeta(builder.WithLabels(util.VolumeSnapshotClassSelectorLabel, "")).Result(),
+			vsClass:     builder.ForVolumeSnapshotClass("testVSClass").Driver("hostpath").ObjectMeta(builder.WithLabels(util.VolumeSnapshotClassSelectorLabel, "")).Result(),
 			operationID: ".",
 			expectedErr: nil,
 			expectedDataUpload: &velerov2alpha1.DataUpload{
@@ -111,7 +111,7 @@ func TestExecute(t *testing.T) {
 					CSISnapshot: &velerov2alpha1.CSISnapshotSpec{
 						VolumeSnapshot: "",
 						StorageClass:   "testSC",
-						SnapshotClass:  "",
+						SnapshotClass:  "testVSClass",
 					},
 					SourcePVC:       "testPVC",
 					SourceNamespace: "velero",
