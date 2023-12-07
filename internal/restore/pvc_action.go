@@ -54,6 +54,7 @@ const (
 
 const (
 	GenerateNameRandomLength = 5
+	writeSparseFiles         = "WriteSparseFiles"
 )
 
 // PVCRestoreItemAction is a restore item action plugin for Velero
@@ -396,7 +397,14 @@ func newDataDownload(restore *velerov1api.Restore, backup *velerov1api.Backup, d
 			OperationTimeout:      backup.Spec.CSISnapshotTimeout,
 		},
 	}
-
+	if restore.Spec.UploaderConfig != nil {
+		dataDownload.Spec.DataMoverConfig = make(map[string]string)
+		if boolptr.IsSetToTrue(restore.Spec.UploaderConfig.WriteSparseFiles) {
+			dataDownload.Spec.DataMoverConfig[writeSparseFiles] = "true"
+		} else {
+			dataDownload.Spec.DataMoverConfig[writeSparseFiles] = "false"
+		}
+	}
 	return dataDownload
 }
 
