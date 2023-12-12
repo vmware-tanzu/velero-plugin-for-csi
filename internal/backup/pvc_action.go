@@ -41,10 +41,9 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	biav2 "github.com/vmware-tanzu/velero/pkg/plugin/velero/backupitemaction/v2"
+	uploaderUtil "github.com/vmware-tanzu/velero/pkg/uploader/util"
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
-
-const parallelFilesUpload = "ParallelFilesUpload"
 
 // PVCBackupItemAction is a backup item action plugin for Velero.
 type PVCBackupItemAction struct {
@@ -347,7 +346,7 @@ func newDataUpload(backup *velerov1api.Backup, vs *snapshotv1api.VolumeSnapshot,
 
 	if backup.Spec.UploaderConfig != nil && backup.Spec.UploaderConfig.ParallelFilesUpload > 0 {
 		dataUpload.Spec.DataMoverConfig = make(map[string]string)
-		dataUpload.Spec.DataMoverConfig[parallelFilesUpload] = fmt.Sprintf("%d", backup.Spec.UploaderConfig.ParallelFilesUpload)
+		dataUpload.Spec.DataMoverConfig[uploaderUtil.ParallelFilesUpload] = fmt.Sprintf("%d", backup.Spec.UploaderConfig.ParallelFilesUpload)
 	}
 
 	return dataUpload

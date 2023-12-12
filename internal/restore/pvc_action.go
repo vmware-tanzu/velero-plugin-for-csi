@@ -41,6 +41,7 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	riav2 "github.com/vmware-tanzu/velero/pkg/plugin/velero/restoreitemaction/v2"
+	uploaderUtil "github.com/vmware-tanzu/velero/pkg/uploader/util"
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
 
@@ -54,7 +55,6 @@ const (
 
 const (
 	GenerateNameRandomLength = 5
-	writeSparseFiles         = "WriteSparseFiles"
 )
 
 // PVCRestoreItemAction is a restore item action plugin for Velero
@@ -400,9 +400,9 @@ func newDataDownload(restore *velerov1api.Restore, backup *velerov1api.Backup, d
 	if restore.Spec.UploaderConfig != nil {
 		dataDownload.Spec.DataMoverConfig = make(map[string]string)
 		if boolptr.IsSetToTrue(restore.Spec.UploaderConfig.WriteSparseFiles) {
-			dataDownload.Spec.DataMoverConfig[writeSparseFiles] = "true"
+			dataDownload.Spec.DataMoverConfig[uploaderUtil.WriteSparseFiles] = "true"
 		} else {
-			dataDownload.Spec.DataMoverConfig[writeSparseFiles] = "false"
+			dataDownload.Spec.DataMoverConfig[uploaderUtil.WriteSparseFiles] = "false"
 		}
 	}
 	return dataDownload
