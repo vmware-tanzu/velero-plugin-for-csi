@@ -2,7 +2,7 @@ module github.com/vmware-tanzu/velero-plugin-for-csi
 
 go 1.21
 
-toolchain go1.21.3
+toolchain go1.21.6
 
 require (
 	github.com/google/go-cmp v0.5.9
@@ -11,8 +11,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.4
-	// TODO: need to use velero v1.12.0 after releasing.
-	github.com/vmware-tanzu/velero v0.0.0-20231212044725-5f14628d696e
+	github.com/vmware-tanzu/velero v0.0.0-20240110095251-6e90e628aa57
 	k8s.io/api v0.25.6
 	k8s.io/apimachinery v0.25.6
 	k8s.io/client-go v0.25.6
