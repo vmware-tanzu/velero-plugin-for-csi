@@ -5,7 +5,8 @@
 
 This repository contains Velero plugins for snapshotting CSI backed PVCs using the [CSI _beta_ snapshot APIs][7].
 
-CSI plugin reaches GA for AWS and Azure environments as of the [Velero 1.9 release][1]. It should also work for those environments in which CSI plugin provides durable snapshot (please check [WARNING](#WARNING) section for more details), but Velero team doesn't have enough resources to verify, so please do enough tests before using CSI plugin in some environments. For those environments that don't have durable snapshot capability, CSI plugin is still in beta state. After Velero's data mover function is ready (hopefully in Velero v1.10), CSI plugin will GA for those environments too.
+CSI plugin reaches GA for AWS and Azure environments as of the [Velero 1.9 release][1]. It should also work for those environments in which CSI plugin provides durable snapshot (please check [WARNING](#WARNING) section for more details), but Velero team doesn't have enough resources to verify, so please do enough tests before using CSI plugin in some environments.
+After Velero's data mover function is ready (v1.12), for those environments that don't have durable snapshot capability, CSI plugin also reached GA. Please use the [CSI snapshot data mover][8] to make the snapshot data durable.
 
 For a list of prerequisites and installation instructions, please refer to our documentation [here][2].
 
@@ -14,15 +15,13 @@ CSI Snapshots are a standard Kubernetes mechanism for taking snapshots.  The act
 
 CSI snapshots on AWS EBS, Azure managed disks and Google Cloud Persistent Disk are durable and can be safely used for backup.
 
-For all other storage systems, please check with your storage vendor.  If your storage vendor doesn't support 
-durable snapshot storage you may want to consider 
-[Velero's Restic Integration](https://velero.io/docs/latest/file-system-backup/#how-velero-integrates-with-restic)
+For all other storage systems, please check with your storage vendor. If your storage vendor doesn't support durable snapshot storage you can use the [CSI snapshot data mover][8].
 
 ## Verified environment
-Velero CSI plugin v0.4 is tested with Velero v1.10 on the following environments:
-* EKS: ebs.csi.aws.com driver is tested with helm chart version helm-chart-aws-ebs-csi-driver-2.6.8 and external-snapshotter version is v5.0.1. v6.0.1 external-snapshotter is also tested with EBS CSI driver helm chart version helm-chart-aws-ebs-csi-driver-2.6.10.
-* AKS: disk.csi.azure.com driver is tested. CSI related controllers are installed in control plane, so cannot find the exactly version. Tested AKS versions are 1.23.3 and v1.22.6.
-* GKE: pd.csi.storage.gke.io driver is tested. CSI related controllers are installed in control plane, so cannot find the exactly version. Tested GKE versions are 1.23.8-gke.1900 and 1.25.1-gke.500.
+Velero CSI plugin v0.7 is tested with Velero v1.13 on the following environments:
+* EKS: ebs.csi.aws.com driver is tested with version v1.27.8.
+* AKS: disk.csi.azure.com driver is tested with version v1.28.3.
+* GKE: pd.csi.storage.gke.io driver is tested with version v1.27.3.
 
 ## Compatibility
 
@@ -158,6 +157,7 @@ We are tracking known limitations with the plugins [here][2]
 [5]: https://kubernetes.io/docs/concepts/storage/volume-snapshot-classes/
 [6]: https://github.com/kubernetes-csi/external-snapshotter/blob/master/pkg/utils/util.go#L59-L60
 [7]: https://kubernetes.io/blog/2019/12/09/kubernetes-1-17-feature-cis-volume-snapshot-beta/
+[8]: https://velero.io/docs/v1.13/csi-snapshot-data-movement/
 
 [101]: https://github.com/vmware-tanzu/velero-plugin-for-csi/workflows/Main%20CI/badge.svg
 [102]: https://github.com/vmware-tanzu/velero-plugin-for-csi/actions?query=workflow%3A"Main+CI"
