@@ -172,8 +172,8 @@ func TestExecute(t *testing.T) {
 			if boolptr.IsSetToTrue(tc.backup.Spec.SnapshotMoveData) == true {
 				go func() {
 					var vsList *v1.VolumeSnapshotList
-					err := wait.PollImmediate(1*time.Second, 10*time.Second, func() (bool, error) {
-						vsList, err = pvcBIA.SnapshotClient.SnapshotV1().VolumeSnapshots(tc.pvc.Namespace).List(context.Background(), metav1.ListOptions{})
+					err := wait.PollUntilContextTimeout(context.Background(), 1*time.Second, 10*time.Second, true, func(ctx context.Context) (bool, error) {
+						vsList, err = pvcBIA.SnapshotClient.SnapshotV1().VolumeSnapshots(tc.pvc.Namespace).List(ctx, metav1.ListOptions{})
 						require.NoError(t, err)
 						if err != nil || len(vsList.Items) == 0 {
 							return false, nil

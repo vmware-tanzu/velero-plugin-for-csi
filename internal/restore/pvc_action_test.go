@@ -369,6 +369,25 @@ func TestProgress(t *testing.T) {
 			expectedErr: "didn't find DataDownload",
 		},
 		{
+			name:    "DataDownload is not in the expected namespace",
+			restore: builder.ForRestore("velero", "test").Result(),
+			dataDownload: &velerov2alpha1.DataDownload{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "DataUpload",
+					APIVersion: velerov2alpha1.SchemeGroupVersion.String(),
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "invalid-namespace",
+					Name:      "testing",
+					Labels: map[string]string{
+						velerov1api.AsyncOperationIDLabel: "testing",
+					},
+				},
+			},
+			operationID: "testing",
+			expectedErr: "didn't find DataDownload",
+		},
+		{
 			name:    "DataUpload is found",
 			restore: builder.ForRestore("velero", "test").Result(),
 			dataDownload: &velerov2alpha1.DataDownload{

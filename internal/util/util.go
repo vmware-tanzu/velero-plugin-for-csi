@@ -418,7 +418,7 @@ func CleanupVolumeSnapshot(volSnap *snapshotv1api.VolumeSnapshot, snapshotClient
 	}
 }
 
-// deleteVolumeSnapshot is called by deleteVolumeSnapshots and handles the single VolumeSnapshot
+// DeleteVolumeSnapshot is called by deleteVolumeSnapshots and handles the single VolumeSnapshot
 // instance.
 func DeleteVolumeSnapshot(vs snapshotv1api.VolumeSnapshot, vsc snapshotv1api.VolumeSnapshotContent,
 	backup *velerov1api.Backup, snapshotClient snapshotter.SnapshotV1Interface, logger logrus.FieldLogger) {

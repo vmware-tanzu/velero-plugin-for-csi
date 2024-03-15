@@ -197,6 +197,10 @@ func (p *VolumeSnapshotBackupItemAction) Execute(item runtime.Unstructured, back
 				Namespace:     vs.Namespace,
 				Name:          vs.Name,
 			},
+			{
+				GroupResource: kuberesource.VolumeSnapshotContents,
+				Name:          vsc.Name,
+			},
 		}
 	}
 
@@ -229,7 +233,8 @@ func (p *VolumeSnapshotBackupItemAction) Progress(operationID string, backup *ve
 		return progress, errors.WithStack(err)
 	}
 
-	vs, err := snapshotClient.SnapshotV1().VolumeSnapshots(operationIDParts[0]).Get(context.Background(), operationIDParts[1], metav1.GetOptions{})
+	vs, err := snapshotClient.SnapshotV1().VolumeSnapshots(operationIDParts[0]).Get(
+		context.Background(), operationIDParts[1], metav1.GetOptions{})
 	if err != nil {
 		p.Log.Errorf("error getting volumesnapshot %s/%s: %s", operationIDParts[0], operationIDParts[1], err.Error())
 		return progress, errors.WithStack(err)
@@ -241,13 +246,40 @@ func (p *VolumeSnapshotBackupItemAction) Progress(operationID string, backup *ve
 	}
 
 	if boolptr.IsSetToTrue(vs.Status.ReadyToUse) {
-		progress.Completed = true
+		p.Log.Debugf("VolumeSnapshot %s/%s is ReadyToUse. Continue on querying corresponding VolumeSnapshotContent.",
+			vs.Namespace, vs.Name)
 	} else if vs.Status.Error != nil {
 		errorMessage := ""
 		if vs.Status.Error.Message != nil {
 			errorMessage = *vs.Status.Error.Message
 		}
 		p.Log.Warnf("VolumeSnapshot has a temporary error %s. Snapshot controller will retry later.", errorMessage)
+
+		return progress, nil
+	}
+
+	if vs.Status != nil && vs.Status.BoundVolumeSnapshotContentName != nil {
+		vsc, err := snapshotClient.SnapshotV1().VolumeSnapshotContents().Get(
+			context.Background(), *vs.Status.BoundVolumeSnapshotContentName, metav1.GetOptions{})
+		if err != nil {
+			p.Log.Errorf("error getting VolumeSnapshotContent %s: %s", *vs.Status.BoundVolumeSnapshotContentName, err.Error())
+			return progress, errors.WithStack(err)
+		}
+
+		if vsc.Status == nil {
+			p.Log.Debugf("VolumeSnapshotContent %s has an empty Status. Skip progress update.", vsc.Name)
+			return progress, nil
+		}
+
+		if boolptr.IsSetToTrue(vsc.Status.ReadyToUse) {
+			progress.Completed = true
+		} else if vsc.Status.Error != nil {
+			progress.Completed = true
+			if vsc.Status.Error.Message != nil {
+				progress.Err = *vsc.Status.Error.Message
+			}
+			p.Log.Warnf("VolumeSnapshotContent meets an error %s.", progress.Err)
+		}
 	}
 
 	return progress, nil
