@@ -23,8 +23,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
-	snapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
+	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v7/apis/volumesnapshot/v1"
+	snapshotfake "github.com/kubernetes-csi/external-snapshotter/client/v7/clientset/versioned/fake"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -159,7 +159,7 @@ func TestResetPVCSpec(t *testing.T) {
 							"baz": "qux",
 						},
 					},
-					Resources: corev1api.ResourceRequirements{
+					Resources: corev1api.VolumeResourceRequirements{
 						Requests: corev1api.ResourceList{
 							corev1api.ResourceCPU: resource.Quantity{
 								Format: resource.DecimalExponent,
@@ -187,7 +187,7 @@ func TestResetPVCSpec(t *testing.T) {
 							"baz": "qux",
 						},
 					},
-					Resources: corev1api.ResourceRequirements{
+					Resources: corev1api.VolumeResourceRequirements{
 						Requests: corev1api.ResourceList{
 							corev1api.ResourceCPU: resource.Quantity{
 								Format: resource.DecimalExponent,
@@ -215,7 +215,7 @@ func TestResetPVCSpec(t *testing.T) {
 							"baz": "qux",
 						},
 					},
-					Resources: corev1api.ResourceRequirements{
+					Resources: corev1api.VolumeResourceRequirements{
 						Requests: corev1api.ResourceList{
 							corev1api.ResourceCPU: resource.Quantity{
 								Format: resource.DecimalExponent,
@@ -228,7 +228,7 @@ func TestResetPVCSpec(t *testing.T) {
 						Kind: "something-that-does-not-exist",
 						Name: "not-found",
 					},
-					DataSourceRef: &corev1api.TypedLocalObjectReference{
+					DataSourceRef: &corev1api.TypedObjectReference{
 						Kind: "something-that-does-not-exist",
 						Name: "not-found",
 					},
@@ -253,7 +253,6 @@ func TestResetPVCSpec(t *testing.T) {
 			assert.NotNil(t, tc.pvc.Spec.DataSource, "expected change to Spec.DataSource missing")
 			assert.Equalf(t, tc.pvc.Spec.DataSource.Kind, util.VolumeSnapshotKindName, "expected change to Spec.DataSource.Kind missing, Want: VolumeSnapshot, Got: %s", tc.pvc.Spec.DataSource.Kind)
 			assert.Equalf(t, tc.pvc.Spec.DataSource.Name, tc.vsName, "expected change to Spec.DataSource.Name missing, Want: %s, Got: %s", tc.vsName, tc.pvc.Spec.DataSource.Name)
-			assert.Equalf(t, tc.pvc.Spec.DataSourceRef.Name, tc.vsName, "expected change to Spec.DataSourceRef.Name missing, Want: %s, Got: %s", tc.vsName, tc.pvc.Spec.DataSourceRef.Name)
 		})
 	}
 }
@@ -278,7 +277,7 @@ func TestResetPVCResourceRequest(t *testing.T) {
 			name: "should set storage resource request from volumesnapshot, pvc has nil resource requests",
 			pvc: corev1api.PersistentVolumeClaim{
 				Spec: corev1api.PersistentVolumeClaimSpec{
-					Resources: corev1api.ResourceRequirements{
+					Resources: corev1api.VolumeResourceRequirements{
 						Requests: nil,
 					},
 				},
@@ -290,7 +289,7 @@ func TestResetPVCResourceRequest(t *testing.T) {
 			name: "should set storage resource request from volumesnapshot, pvc has empty resource requests",
 			pvc: corev1api.PersistentVolumeClaim{
 				Spec: corev1api.PersistentVolumeClaimSpec{
-					Resources: corev1api.ResourceRequirements{
+					Resources: corev1api.VolumeResourceRequirements{
 						Requests: corev1api.ResourceList{},
 					},
 				},
@@ -302,7 +301,7 @@ func TestResetPVCResourceRequest(t *testing.T) {
 			name: "should merge resource requests from volumesnapshot into pvc with no storage resource requests",
 			pvc: corev1api.PersistentVolumeClaim{
 				Spec: corev1api.PersistentVolumeClaimSpec{
-					Resources: corev1api.ResourceRequirements{
+					Resources: corev1api.VolumeResourceRequirements{
 						Requests: corev1api.ResourceList{
 							corev1api.ResourceCPU: cpuQty,
 						},
@@ -316,7 +315,7 @@ func TestResetPVCResourceRequest(t *testing.T) {
 			name: "should set storage resource request from volumesnapshot, pvc requests less storage",
 			pvc: corev1api.PersistentVolumeClaim{
 				Spec: corev1api.PersistentVolumeClaimSpec{
-					Resources: corev1api.ResourceRequirements{
+					Resources: corev1api.VolumeResourceRequirements{
 						Requests: corev1api.ResourceList{
 							corev1api.ResourceStorage: storageReq50Mi,
 						},
@@ -330,7 +329,7 @@ func TestResetPVCResourceRequest(t *testing.T) {
 			name: "should not set storage resource request from volumesnapshot, pvc requests more storage",
 			pvc: corev1api.PersistentVolumeClaim{
 				Spec: corev1api.PersistentVolumeClaimSpec{
-					Resources: corev1api.ResourceRequirements{
+					Resources: corev1api.VolumeResourceRequirements{
 						Requests: corev1api.ResourceList{
 							corev1api.ResourceStorage: storageReq1Gi,
 						},
@@ -567,7 +566,7 @@ func TestExecute(t *testing.T) {
 			pvc: builder.ForPersistentVolumeClaim("velero", "testPVC").ObjectMeta(builder.WithAnnotations(util.VolumeSnapshotLabel, "testVS")).
 				RequestResource(map[corev1api.ResourceName]resource.Quantity{corev1api.ResourceStorage: resource.MustParse("10Gi")}).
 				DataSource(&corev1api.TypedLocalObjectReference{APIGroup: &snapshotv1api.SchemeGroupVersion.Group, Kind: util.VolumeSnapshotKindName, Name: "testVS"}).
-				DataSourceRef(&corev1api.TypedLocalObjectReference{APIGroup: &snapshotv1api.SchemeGroupVersion.Group, Kind: util.VolumeSnapshotKindName, Name: "testVS"}).
+				DataSourceRef(&corev1api.TypedObjectReference{APIGroup: &snapshotv1api.SchemeGroupVersion.Group, Kind: util.VolumeSnapshotKindName, Name: "testVS"}).
 				Result(),
 			vs:          builder.ForVolumeSnapshot("velero", "testVS").ObjectMeta(builder.WithAnnotations(util.VolumeSnapshotRestoreSize, "10Gi")).Result(),
 			expectedPVC: builder.ForPersistentVolumeClaim("velero", "testPVC").Result(),

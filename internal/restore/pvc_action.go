@@ -21,8 +21,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
-	snapshotterClientSet "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
+	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v7/apis/volumesnapshot/v1"
+	snapshotterClientSet "github.com/kubernetes-csi/external-snapshotter/client/v7/clientset/versioned"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	corev1api "k8s.io/api/core/v1"
@@ -89,13 +89,13 @@ func resetPVCSpec(pvc *corev1api.PersistentVolumeClaim, vsName string) {
 	// Restore operation for the PVC will use the volumesnapshot as the data source.
 	// So clear out the volume name, which is a ref to the PV
 	pvc.Spec.VolumeName = ""
-	dataSourceRef := &corev1api.TypedLocalObjectReference{
+	dataSource := &corev1api.TypedLocalObjectReference{
 		APIGroup: &snapshotv1api.SchemeGroupVersion.Group,
 		Kind:     util.VolumeSnapshotKindName,
 		Name:     vsName,
 	}
-	pvc.Spec.DataSource = dataSourceRef
-	pvc.Spec.DataSourceRef = dataSourceRef
+	pvc.Spec.DataSource = dataSource
+	pvc.Spec.DataSourceRef = nil
 }
 
 func setPVCStorageResourceRequest(pvc *corev1api.PersistentVolumeClaim, restoreSize resource.Quantity, log logrus.FieldLogger) {
