@@ -334,7 +334,10 @@ func getDataUploadResult(ctx context.Context, restore *velerov1api.Restore, pvc 
 
 func getDataDownload(ctx context.Context, namespace string, operationID string, crClient crclient.Client) (*velerov2alpha1.DataDownload, error) {
 	dataDownloadList := new(velerov2alpha1.DataDownloadList)
-	err := crClient.List(ctx, dataDownloadList, &crclient.ListOptions{LabelSelector: labels.SelectorFromSet(map[string]string{velerov1api.AsyncOperationIDLabel: operationID})})
+	err := crClient.List(ctx, dataDownloadList, &crclient.ListOptions{
+		LabelSelector: labels.SelectorFromSet(map[string]string{velerov1api.AsyncOperationIDLabel: operationID}),
+		Namespace:     namespace,
+	})
 	if err != nil {
 		return nil, errors.Wrap(err, "fail to list DataDownload")
 	}
@@ -356,7 +359,7 @@ func cancelDataDownload(ctx context.Context, crClient crclient.Client,
 	updatedDataDownload := dataDownload.DeepCopy()
 	updatedDataDownload.Spec.Cancel = true
 
-	err := crClient.Patch(context.Background(), updatedDataDownload, crclient.MergeFrom(dataDownload))
+	err := crClient.Patch(ctx, updatedDataDownload, crclient.MergeFrom(dataDownload))
 	return err
 }
 

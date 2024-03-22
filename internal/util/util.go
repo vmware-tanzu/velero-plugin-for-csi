@@ -236,8 +236,8 @@ func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1api.VolumeSnap
 	interval := 5 * time.Second
 	var snapshotContent *snapshotv1api.VolumeSnapshotContent
 
-	err := wait.PollImmediate(interval, timeout, func() (bool, error) {
-		vs, err := snapshotClient.VolumeSnapshots(volSnap.Namespace).Get(context.TODO(), volSnap.Name, metav1.GetOptions{})
+	err := wait.PollUntilContextTimeout(context.Background(), interval, timeout, true, func(ctx context.Context) (bool, error) {
+		vs, err := snapshotClient.VolumeSnapshots(volSnap.Namespace).Get(ctx, volSnap.Name, metav1.GetOptions{})
 		if err != nil {
 			return false, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshot %s/%s", volSnap.Namespace, volSnap.Name))
 		}
@@ -247,7 +247,7 @@ func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1api.VolumeSnap
 			return false, nil
 		}
 
-		snapshotContent, err = snapshotClient.VolumeSnapshotContents().Get(context.TODO(), *vs.Status.BoundVolumeSnapshotContentName, metav1.GetOptions{})
+		snapshotContent, err = snapshotClient.VolumeSnapshotContents().Get(ctx, *vs.Status.BoundVolumeSnapshotContentName, metav1.GetOptions{})
 		if err != nil {
 			return false, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotcontent %s for volumesnapshot %s/%s", *vs.Status.BoundVolumeSnapshotContentName, vs.Namespace, vs.Name))
 		}
@@ -267,7 +267,7 @@ func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1api.VolumeSnap
 	})
 
 	if err != nil {
-		if err == wait.ErrWaitTimeout {
+		if err == wait.ErrorInterrupted(errors.New("timed out waiting for the condition")) {
 			if snapshotContent != nil && snapshotContent.Status != nil && snapshotContent.Status.Error != nil {
 				log.Errorf("Timed out awaiting reconciliation of volumesnapshot, Volumesnapshotcontent %s has error: %v", snapshotContent.Name, *snapshotContent.Status.Error.Message)
 				return nil, errors.Errorf("CSI got timed out with error: %v", *snapshotContent.Status.Error.Message)
@@ -418,7 +418,7 @@ func CleanupVolumeSnapshot(volSnap *snapshotv1api.VolumeSnapshot, snapshotClient
 	}
 }
 
-// deleteVolumeSnapshot is called by deleteVolumeSnapshots and handles the single VolumeSnapshot
+// DeleteVolumeSnapshot is called by deleteVolumeSnapshots and handles the single VolumeSnapshot
 // instance.
 func DeleteVolumeSnapshot(vs snapshotv1api.VolumeSnapshot, vsc snapshotv1api.VolumeSnapshotContent,
 	backup *velerov1api.Backup, snapshotClient snapshotter.SnapshotV1Interface, logger logrus.FieldLogger) {
@@ -483,8 +483,8 @@ func recreateVolumeSnapshotContent(vsc snapshotv1api.VolumeSnapshotContent, back
 	}
 
 	// Check VolumeSnapshotContents is already deleted, before re-creating it.
-	err = wait.PollImmediate(interval, timeout, func() (bool, error) {
-		_, err := snapshotClient.VolumeSnapshotContents().Get(context.TODO(), vsc.Name, metav1.GetOptions{})
+	err = wait.PollUntilContextTimeout(context.Background(), interval, timeout, true, func(ctx context.Context) (bool, error) {
+		_, err := snapshotClient.VolumeSnapshotContents().Get(ctx, vsc.Name, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				return true, nil

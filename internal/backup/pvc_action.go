@@ -253,7 +253,7 @@ func (p *PVCBackupItemAction) Progress(operationID string, backup *velerov1api.B
 		return progress, biav2.InvalidOperationIDError(operationID)
 	}
 
-	dataUpload, err := getDataUpload(context.Background(), backup, p.CRClient, operationID)
+	dataUpload, err := getDataUpload(context.Background(), p.CRClient, operationID)
 	if err != nil {
 		p.Log.Errorf("fail to get DataUpload for backup %s/%s: %s", backup.Namespace, backup.Name, err.Error())
 		return progress, err
@@ -294,7 +294,7 @@ func (p *PVCBackupItemAction) Cancel(operationID string, backup *velerov1api.Bac
 		return biav2.InvalidOperationIDError(operationID)
 	}
 
-	dataUpload, err := getDataUpload(context.Background(), backup, p.CRClient, operationID)
+	dataUpload, err := getDataUpload(context.Background(), p.CRClient, operationID)
 	if err != nil {
 		p.Log.Errorf("fail to get DataUpload for backup %s/%s: %s", backup.Namespace, backup.Name, err.Error())
 		return err
@@ -365,10 +365,10 @@ func createDataUpload(ctx context.Context, backup *velerov1api.Backup, crClient 
 	return dataUpload, err
 }
 
-func getDataUpload(ctx context.Context, backup *velerov1api.Backup,
+func getDataUpload(ctx context.Context,
 	crClient crclient.Client, operationID string) (*velerov2alpha1.DataUpload, error) {
 	dataUploadList := new(velerov2alpha1.DataUploadList)
-	err := crClient.List(context.Background(), dataUploadList, &crclient.ListOptions{
+	err := crClient.List(ctx, dataUploadList, &crclient.ListOptions{
 		LabelSelector: labels.SelectorFromSet(map[string]string{velerov1api.AsyncOperationIDLabel: operationID}),
 	})
 	if err != nil {
@@ -392,7 +392,7 @@ func cancelDataUpload(ctx context.Context, crClient crclient.Client,
 	updatedDataUpload := dataUpload.DeepCopy()
 	updatedDataUpload.Spec.Cancel = true
 
-	err := crClient.Patch(context.Background(), updatedDataUpload, crclient.MergeFrom(dataUpload))
+	err := crClient.Patch(ctx, updatedDataUpload, crclient.MergeFrom(dataUpload))
 	if err != nil {
 		return errors.Wrap(err, "error patch DataUpload")
 	}
