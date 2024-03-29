@@ -271,10 +271,14 @@ func (p *VolumeSnapshotBackupItemAction) Progress(operationID string, backup *ve
 			return progress, nil
 		}
 
+		now := time.Now()
+
 		if boolptr.IsSetToTrue(vsc.Status.ReadyToUse) {
 			progress.Completed = true
+			progress.Updated = now
 		} else if vsc.Status.Error != nil {
 			progress.Completed = true
+			progress.Updated = now
 			if vsc.Status.Error.Message != nil {
 				progress.Err = *vsc.Status.Error.Message
 			}
