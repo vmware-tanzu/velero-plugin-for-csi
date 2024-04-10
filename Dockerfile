@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-FROM --platform=$BUILDPLATFORM golang:1.21.6-bookworm AS build
+FROM --platform=$BUILDPLATFORM golang:1.21.9-bookworm AS build
 
 ARG TARGETOS
 ARG TARGETARCH
