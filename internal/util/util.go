@@ -267,7 +267,7 @@ func GetVolumeSnapshotContentForVolumeSnapshot(volSnap *snapshotv1api.VolumeSnap
 	})
 
 	if err != nil {
-		if err == wait.ErrorInterrupted(errors.New("timed out waiting for the condition")) {
+		if wait.Interrupted(err) {
 			if snapshotContent != nil && snapshotContent.Status != nil && snapshotContent.Status.Error != nil {
 				log.Errorf("Timed out awaiting reconciliation of volumesnapshot, Volumesnapshotcontent %s has error: %v", snapshotContent.Name, *snapshotContent.Status.Error.Message)
 				return nil, errors.Errorf("CSI got timed out with error: %v", *snapshotContent.Status.Error.Message)
