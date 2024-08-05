@@ -10,6 +10,9 @@ After Velero's data mover function is ready (v1.12), for those environments that
 
 For a list of prerequisites and installation instructions, please refer to our documentation [here][2].
 
+> [!TIP]
+> Since Velero v1.14, this plugin is integrated into Velero and should not be added manually. You can safely remove it from your configuration if upgrading from v1.13. See [Upgrade notes](https://velero.io/docs/v1.14/upgrade-to-1.14/)
+
 # WARNING
 CSI Snapshots are a standard Kubernetes mechanism for taking snapshots.  The actual implementation of snapshots varies by storage vendor.  For disaster recovery, snapshots must be stored in a durable store, such as an S3 bucket, tape library, etc. and not just on the primary storage.  If the snapshot is only stored on the primary storage and the storage is corrupted or destroyed the backup will be lost.
 
